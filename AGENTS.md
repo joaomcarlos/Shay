@@ -9,3 +9,4 @@ Factorio 2.1 mod (`base >= 2.1.0`): a track-laying locomotive that builds rails 
 - Bump `info.json` version and add the top `changelog.txt` entry before packaging; entries state what the mod does, never the dev process
 - Lua 5.2, Factorio runtime: keep data stage (`data.lua`) and control stage (`control.lua`) separate
 - Fail fast, no meaningless nil-guards, no backwards-compat shims, YAGNI
+- `docs/graphics-pipeline.md` — sprite/animation architecture study (Sweepbot teardown + vanilla rolling-stock spec + AI image-generation plan); read before touching graphics or prototypes
