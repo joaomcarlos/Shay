@@ -1,0 +1,11 @@
+{
+  "name": "Shay",
+  "version": "0.1.0",
+  "title": "Shay",
+  "author": "TheSilentWarrior",
+  "factorio_version": "2.1",
+  "dependencies": [
+    "base >= 2.1.0"
+  ],
+  "description": "A track-laying locomotive that builds rails ahead of itself as it drives - point Shay at the frontier and it lays the way."
+}
