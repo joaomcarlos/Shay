@@ -1,5 +1,6 @@
 publish/
 output/
+work/
 *.zip
 luac.out
 diagnostics

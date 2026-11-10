@@ -7,6 +7,8 @@
     "LICENSE",
     "control.lua",
     "data.lua",
+    "prototypes/*.lua",
+    "graphics/entity/shay-gun-locomotive/",
     "locale/"
   ]
 }

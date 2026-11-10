@@ -10,3 +10,7 @@ Factorio 2.1 mod (`base >= 2.1.0`): a track-laying locomotive that builds rails 
 - Lua 5.2, Factorio runtime: keep data stage (`data.lua`) and control stage (`control.lua`) separate
 - Fail fast, no meaningless nil-guards, no backwards-compat shims, YAGNI
 - `docs/graphics-pipeline.md` — sprite/animation architecture study (Sweepbot teardown + vanilla rolling-stock spec + AI image-generation plan); read before touching graphics or prototypes
+- `tools/` — asset pipeline scripts: `extract_vanilla_locomotive.py` pulls vanilla cells into `work/raw/`, `pack_sprites.py` packs cells into sheets + writes `*.lua` metadata next to them
+- `prototypes/` — data-stage entity/item/recipe files, one per vehicle
+- `work/` — gitignored raw-art staging; packed output lands in `graphics/` and IS committed
+- Headless smoke test: `factorio --create save.zip -c config.ini --mod-directory <dir>` with an isolated mod dir containing `mod-list.json` (base + Shay) — never use `~/.factorio`, jc's game locks it
