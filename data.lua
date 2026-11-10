@@ -1,1 +1,10 @@
+require("prototypes.turrets")
+require("prototypes.sentry-bot")
+require("prototypes.equipment")
+require("prototypes.inputs")
+require("prototypes.overlays")
+
 require("prototypes.gun-locomotive")
+require("prototypes.mg-wagon")
+require("prototypes.track-layer-locomotive")
+require("prototypes.ramp-wagon")
