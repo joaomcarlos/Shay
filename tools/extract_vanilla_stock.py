@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-"""Extract a subset of vanilla locomotive directions as raw cells for pack_sprites.
+"""Extract a subset of vanilla rolling-stock directions as raw cells for pack_sprites.
 
-Vanilla sheets: 8 files per layer, 4 cols x 8 rows of direction cells, 256
-directions total (cell index == direction index, north first, clockwise).
+Vanilla stock sheets: N files per layer, 4 cols x 8 rows of direction cells
+(index == direction index, north first, clockwise). Locomotive has 256
+directions, wagons 128.
 
-Writes <out>/<layer>/<i>.png for our direction i = i * (256 / dirs), plus a
-meta.json carrying each layer's vanilla shift (in tiles) so packed sheets keep
-the same registration.
+Writes <out>/<layer>/<i>.png for our direction i (i * total/dirs), plus a
+meta.json carrying each layer's vanilla shift (in tiles).
 """
 import argparse
 import json
 import os
 import re
-import sys
 
 from PIL import Image
 
-LAYERS = {
-    "base": "locomotive",
-    "mask": "locomotive-mask",
-    "shadow": "locomotive-shadow",
+STOCK = {
+    "locomotive": {"dir": "graphics/entity/locomotive", "prefix": "locomotive", "total": 256},
+    "cargo-wagon": {"dir": "graphics/entity/cargo-wagon", "prefix": "cargo-wagon", "total": 128},
 }
-COLS, ROWS, FILES, TOTAL = 4, 8, 8, 256
+COLS, ROWS = 4, 8
+LAYERS = {"base": "", "mask": "-mask", "shadow": "-shadow"}
 
 
 def vanilla_shift(graphics_dir, prefix):
@@ -30,11 +29,11 @@ def vanilla_shift(graphics_dir, prefix):
     return [float(m.group(1)) / 32, float(m.group(2)) / 32]
 
 
-def extract_layer(graphics_dir, prefix, out_dir, dirs):
+def extract_layer(graphics_dir, prefix, out_dir, dirs, total):
     cw = ch = None
     cache = {}
     for i in range(dirs):
-        vi = i * (TOTAL // dirs)
+        vi = i * (total // dirs)
         f = vi // (COLS * ROWS)
         local = vi % (COLS * ROWS)
         if f not in cache:
@@ -51,15 +50,18 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--factorio", default=os.path.expanduser(
         "~/.local/share/Steam/steamapps/common/Factorio/data/base"))
+    p.add_argument("--stock", choices=sorted(STOCK), required=True)
     p.add_argument("--out", required=True, help="raw output root, one subdir per layer")
     p.add_argument("--dirs", type=int, default=16)
     a = p.parse_args()
 
-    graphics = os.path.join(a.factorio, "graphics/entity/locomotive")
-    for layer, prefix in LAYERS.items():
+    stock = STOCK[a.stock]
+    graphics = os.path.join(a.factorio, stock["dir"])
+    for layer, suffix in LAYERS.items():
+        prefix = stock["prefix"] + suffix
         out_dir = os.path.join(a.out, layer)
         os.makedirs(out_dir, exist_ok=True)
-        cw, ch = extract_layer(graphics, prefix, out_dir, a.dirs)
+        cw, ch = extract_layer(graphics, prefix, out_dir, a.dirs, stock["total"])
         shift = vanilla_shift(graphics, prefix)
         with open(os.path.join(out_dir, "meta.json"), "w") as fh:
             json.dump({"shift": shift}, fh)
