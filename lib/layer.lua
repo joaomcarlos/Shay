@@ -421,20 +421,36 @@ end
 
 local layer = {}
 
+-- Custom inputs are prototypes: a Factorio process started before an input
+-- existed never learns it, and get_event_id hard-errors. Resolve by id so a
+-- stale process loses the hotkey instead of crashing the save load.
+local custom_inputs =
+{
+  [shared.custom_input_cruise] = on_toggle_cruise,
+  [shared.custom_input_resupply] = on_resupply
+}
+
+local register_inputs = function()
+  for name, handler in pairs(custom_inputs) do
+    local ok, id = pcall(script.get_event_id, name)
+    if ok then script.on_event(id, handler) end
+  end
+end
+
 layer.on_init = function()
   storage.layer = {locos = {}, registrations = {}}
   script_data = storage.layer
+  register_inputs()
 end
 
 layer.on_load = function()
   script_data = storage.layer
+  register_inputs()
 end
 
 layer.events =
 {
   [defines.events.on_tick] = on_tick,
-  [shared.custom_input_cruise] = on_toggle_cruise,
-  [shared.custom_input_resupply] = on_resupply,
   [defines.events.on_train_changed_state] = on_train_changed_state,
   [defines.events.on_built_entity] = on_built,
   [defines.events.on_robot_built_entity] = on_built,
