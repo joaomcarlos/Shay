@@ -50,6 +50,15 @@ shared.layer =
   equipment_grid = "shay-equipment-grid",
 }
 
+-- Resupply: run back to the schedule's first station for more rail, then return to the last laid rail.
+shared.supply =
+{
+  rail_low = 20,           -- auto-resupply when the consist holds fewer than this many rail items
+  rail_full = 200,         -- stocked threshold the wait condition checks for
+  wait_ticks = 3600,       -- give up waiting at the station after this
+  arrive_wait = 120,       -- ticks to pause at the frontier rail before resuming
+}
+
 -- Ramp wagon / sentry bots
 shared.ramp =
 {
@@ -62,5 +71,6 @@ shared.ramp =
 }
 
 shared.custom_input_cruise = "shay-toggle-cruise"
+shared.custom_input_resupply = "shay-resupply"
 
 return shared
