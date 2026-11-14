@@ -217,6 +217,21 @@ local step_resupply = function(record, tick)
   end
 end
 
+local grindable = function(entity)
+  return entity.type == "tree" or (entity.type == "simple-entity" and entity.name:find("rock", 1, true))
+end
+
+local destroy_obstacle = function(record, entity)
+  local loco = record.entity
+  local surface = loco.surface
+  local sound = "entity-mined/" .. entity.name
+  if helpers.is_valid_sound_path(sound) then surface.play_sound{path = sound, position = entity.position} end
+  for _, product in pairs(entity.prototype.mineable_properties.products or {}) do
+    if product.type == "item" then store(loco.train, product.name, product.amount or product.amount_max) end
+  end
+  entity.die()
+end
+
 -- Water under the next rail's 2x2 footprint gets landfill first; returns false while water is left unfilled.
 local fill_water = function(record, tick, position)
   local loco = record.entity
@@ -270,7 +285,13 @@ local lay_rail = function(record, tick)
     if best_reach >= lookahead then return end
     local next_position = {x = end_position.x + vector.x * rail_length, y = end_position.y + vector.y * rail_length}
     if not fill_water(record, tick, next_position) then return end
-    if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
+    if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
+      -- A tree or rock sitting on the footprint beyond the grinder's reach would stall the train at the frontier; eat it where it stands.
+      for _, entity in pairs(surface.find_entities_filtered{position = next_position, radius = 2, type = {"simple-entity", "tree"}}) do
+        if grindable(entity) then destroy_obstacle(record, entity) end
+      end
+      if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
+    end
     if not take_item(loco.train, rail_item) then
       local resupply = not record.auto_resupply_off and rail_count(loco.train) < shared.supply.rail_low
       if resupply and begin_resupply(record) then return end
@@ -298,15 +319,8 @@ local grind = function(record)
     {math.min(from.x, to.x) - grind_width, math.min(from.y, to.y) - grind_width},
     {math.max(from.x, to.x) + grind_width, math.max(from.y, to.y) + grind_width}
   }
-  for _, rock in pairs(surface.find_entities_filtered{area = area, type = "simple-entity"}) do
-    if rock.name:find("rock", 1, true) then
-      local sound = "entity-mined/" .. rock.name
-      if helpers.is_valid_sound_path(sound) then surface.play_sound{path = sound, position = rock.position} end
-      for _, product in pairs(rock.prototype.mineable_properties.products or {}) do
-        if product.type == "item" then store(loco.train, product.name, product.amount or product.amount_max) end
-      end
-      rock.die()
-    end
+  for _, entity in pairs(surface.find_entities_filtered{area = area, type = {"simple-entity", "tree"}}) do
+    if grindable(entity) then destroy_obstacle(record, entity) end
   end
 end
 
@@ -332,6 +346,19 @@ local show_grinder = function(record, moving)
   }
 end
 
+-- Moving forward, or trying to: cruise pushes, or a passenger holds accelerate into an obstacle.
+-- A train pressed against a tree reads ~0 speed, so gating the grinder on speed alone deadlocks it.
+local pushing_forward = function(record, sign)
+  local train = record.entity.train
+  local speed = train.speed * sign
+  if speed ~= 0 then return speed > 0 end
+  if record.cruise then return true end
+  for _, player in pairs(train.passengers) do
+    if player.riding_state.acceleration == defines.riding.acceleration.accelerating then return true end
+  end
+  return false
+end
+
 local update = function(record, tick)
   if record.resupply then
     step_resupply(record, tick)
@@ -341,8 +368,9 @@ local update = function(record, tick)
   local train = loco.train
   local sign = heading(loco)
   if record.cruise and not overridden(train) then train.speed = shared.layer.cruise_speed * sign end
-  show_grinder(record, train.speed ~= 0)
-  if train.speed * sign <= 0 then return end
+  local pushing = pushing_forward(record, sign)
+  show_grinder(record, pushing)
+  if not pushing then return end
   if tick % shared.layer.rail_lay_interval == 0 then lay_rail(record, tick) end
   if tick % shared.layer.grind_interval == 0 then grind(record) end
 end
