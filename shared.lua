@@ -39,6 +39,15 @@ shared.turrets =
   },
 }
 
+-- Default body tint per stock — the colour shown on its item thumbnail.
+shared.colors =
+{
+  [shared.layer_locomotive] = {r = 0.40, g = 0.66, b = 0.40},
+  [shared.gun_locomotive] = {r = 0.62, g = 0.44, b = 0.26},
+  [shared.mg_wagon] = {r = 0.31, g = 0.44, b = 0.58},
+  [shared.ramp_wagon] = {r = 0.66, g = 0.36, b = 0.36},
+}
+
 -- Track-layer locomotive tuning
 shared.layer =
 {

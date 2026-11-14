@@ -38,6 +38,7 @@ function stock.clone(entity_type, vanilla, name)
   entity.name = name
   entity.icon = "__Shay__/graphics/icons/" .. name .. ".png"
   entity.minable = {mining_time = 0.5, result = name}
+  entity.color = shared.colors[name]
   entity.pictures = stock.pictures(name)
 
   local item = table.deepcopy(data.raw["item-with-entity-data"][vanilla])

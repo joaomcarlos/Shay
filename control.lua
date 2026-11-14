@@ -4,5 +4,6 @@ handler.add_libraries
 {
   require("lib.turrets"),
   require("lib.layer"),
-  require("lib.ramp")
+  require("lib.ramp"),
+  require("lib.stock")
 }
