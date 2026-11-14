@@ -217,9 +217,26 @@ local step_resupply = function(record, tick)
   end
 end
 
--- The drill eats anything destructible that isn't ours: trees, rocks, cliffs, ore, enemy structures, wrecks.
-local grindable = function(entity, force)
-  return entity.destructible and entity.force ~= force
+-- Rail infrastructure is off the menu: the train needs the track it stands on, and a crossing line is a real "can't build through".
+local rail_infrastructure =
+{
+  ["straight-rail"] = true, ["half-diagonal-rail"] = true,
+  ["curved-rail-a"] = true, ["curved-rail-b"] = true,
+  ["elevated-straight-rail"] = true, ["elevated-half-diagonal-rail"] = true,
+  ["elevated-curved-rail-a"] = true, ["elevated-curved-rail-b"] = true,
+  ["rail-ramp"] = true, ["rail-support"] = true,
+  ["legacy-straight-rail"] = true, ["legacy-curved-rail"] = true,
+  ["rail-signal"] = true, ["rail-chain-signal"] = true, ["train-stop"] = true
+}
+
+local rolling_stock = {locomotive = true, ["cargo-wagon"] = true, ["fluid-wagon"] = true, ["artillery-wagon"] = true}
+local support_entities = {[shared.cannon_turret] = true, [shared.mg_turret] = true, [shared.sentry_bot] = true}
+
+-- The drill eats anything destructible — including our own poles and builds — except rail
+-- infrastructure, our own consist, and the mod's script-driven support entities.
+local grindable = function(record, entity)
+  if not entity.destructible or rail_infrastructure[entity.type] or support_entities[entity.name] then return false end
+  return not (rolling_stock[entity.type] and entity.train == record.entity.train)
 end
 
 local destroy_obstacle = function(record, entity)
@@ -291,7 +308,7 @@ local lay_rail = function(record, tick)
     if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
       -- A tree or rock sitting on the footprint beyond the grinder's reach would stall the train at the frontier; eat it where it stands.
       for _, entity in pairs(surface.find_entities_filtered{position = next_position, radius = 2}) do
-        if grindable(entity, loco.force) then destroy_obstacle(record, entity) end
+        if grindable(record, entity) then destroy_obstacle(record, entity) end
       end
       if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
     end
@@ -323,7 +340,7 @@ local grind = function(record)
     {math.max(from.x, to.x) + grind_width, math.max(from.y, to.y) + grind_width}
   }
   for _, entity in pairs(surface.find_entities_filtered{area = area}) do
-    if grindable(entity, loco.force) then destroy_obstacle(record, entity) end
+    if grindable(record, entity) then destroy_obstacle(record, entity) end
   end
 end
 
