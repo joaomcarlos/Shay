@@ -217,8 +217,9 @@ local step_resupply = function(record, tick)
   end
 end
 
-local grindable = function(entity)
-  return entity.type == "tree" or (entity.type == "simple-entity" and entity.name:find("rock", 1, true))
+-- The drill eats anything destructible that isn't ours: trees, rocks, cliffs, ore, enemy structures, wrecks.
+local grindable = function(entity, force)
+  return entity.destructible and entity.force ~= force
 end
 
 local destroy_obstacle = function(record, entity)
@@ -230,6 +231,8 @@ local destroy_obstacle = function(record, entity)
     if product.type == "item" then store(loco.train, product.name, product.amount or product.amount_max) end
   end
   entity.die()
+  -- die() is a no-op on things without health (cliffs, resources): pull them out of the ground instead.
+  if entity.valid then entity.destroy() end
 end
 
 -- Water under the next rail's 2x2 footprint gets landfill first; returns false while water is left unfilled.
@@ -287,8 +290,8 @@ local lay_rail = function(record, tick)
     if not fill_water(record, tick, next_position) then return end
     if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
       -- A tree or rock sitting on the footprint beyond the grinder's reach would stall the train at the frontier; eat it where it stands.
-      for _, entity in pairs(surface.find_entities_filtered{position = next_position, radius = 2, type = {"simple-entity", "tree"}}) do
-        if grindable(entity) then destroy_obstacle(record, entity) end
+      for _, entity in pairs(surface.find_entities_filtered{position = next_position, radius = 2}) do
+        if grindable(entity, loco.force) then destroy_obstacle(record, entity) end
       end
       if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
     end
@@ -319,8 +322,8 @@ local grind = function(record)
     {math.min(from.x, to.x) - grind_width, math.min(from.y, to.y) - grind_width},
     {math.max(from.x, to.x) + grind_width, math.max(from.y, to.y) + grind_width}
   }
-  for _, entity in pairs(surface.find_entities_filtered{area = area, type = {"simple-entity", "tree"}}) do
-    if grindable(entity) then destroy_obstacle(record, entity) end
+  for _, entity in pairs(surface.find_entities_filtered{area = area}) do
+    if grindable(entity, loco.force) then destroy_obstacle(record, entity) end
   end
 end
 
