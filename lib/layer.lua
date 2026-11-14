@@ -3,6 +3,8 @@ local frame = require("lib.frame")
 
 local rail_entity = "straight-rail"
 local rail_item = "rail"
+local fill_item = "landfill"
+local fill_tile = "landfill"
 local rail_length = 2
 local nose_reach = 3
 local rail_search_radius = 6
@@ -23,7 +25,7 @@ local script_data
 
 local add = function(loco)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0}
+  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -52,9 +54,9 @@ local overridden = function(train)
   return false
 end
 
-local take_rail = function(train)
+local take_item = function(train, name)
   for _, wagon in pairs(train.cargo_wagons) do
-    if wagon.get_inventory(defines.inventory.cargo_wagon).remove{name = rail_item, count = 1} == 1 then return true end
+    if wagon.get_inventory(defines.inventory.cargo_wagon).remove{name = name, count = 1} == 1 then return true end
   end
   return false
 end
@@ -215,6 +217,32 @@ local step_resupply = function(record, tick)
   end
 end
 
+-- Water under the next rail's 2x2 footprint gets landfill first; returns false while water is left unfilled.
+local fill_water = function(record, tick, position)
+  local loco = record.entity
+  local water = loco.surface.find_tiles_filtered
+  {
+    area = {{position.x - 1, position.y - 1}, {position.x + 1, position.y + 1}},
+    collision_mask = "water_tile"
+  }
+  if #water == 0 then return true end
+  local tiles = {}
+  for index, tile in pairs(water) do
+    if not take_item(loco.train, fill_item) then break end
+    tiles[index] = {name = fill_tile, position = tile.position}
+  end
+  if #tiles > 0 then loco.surface.set_tiles(tiles) end
+  if #tiles == #water then return true end
+  local resupply = not record.auto_resupply_off
+  if resupply and begin_resupply(record) then return false end
+  if tick >= record.next_fill_warn then
+    record.next_fill_warn = tick + warn_interval
+    loco.force.print({"shay-message.out-of-landfill"})
+    if resupply then loco.force.print({"shay-message.no-supply-station"}) end
+  end
+  return false
+end
+
 local lay_rail = function(record, tick)
   local loco = record.entity
   local surface, position = loco.surface, loco.position
@@ -241,8 +269,9 @@ local lay_rail = function(record, tick)
   for _ = 1, max_rails_per_lay do
     if best_reach >= lookahead then return end
     local next_position = {x = end_position.x + vector.x * rail_length, y = end_position.y + vector.y * rail_length}
+    if not fill_water(record, tick, next_position) then return end
     if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
-    if not take_rail(loco.train) then
+    if not take_item(loco.train, rail_item) then
       local resupply = not record.auto_resupply_off and rail_count(loco.train) < shared.supply.rail_low
       if resupply and begin_resupply(record) then return end
       if tick >= record.next_warn then
