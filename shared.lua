@@ -58,7 +58,8 @@ shared.layer =
   grind_interval = 15,         -- ticks between obstacle-grind checks while pushing forward
   grind_reach = 1.8,           -- tiles ahead of the nose
   rail_lay_interval = 5,       -- ticks between rail extension attempts
-  grinder_offset = {0, 2.4},   -- rotating nose position, stock-local
+  grinder_offset = {0, 3.6},   -- physical grinding corridor, stock-local
+  grinder_visual_offset = {0, 4.2}, -- enlarged drill centre; its base stays at the nose
   equipment_grid = "shay-equipment-grid",
 }
 

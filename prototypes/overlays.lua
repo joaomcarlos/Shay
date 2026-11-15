@@ -10,7 +10,7 @@ data:extend
     height = 96,
     frame_count = 8,
     line_length = 8,
-    scale = 0.4,
+    scale = 0.8,
     priority = "low"
   },
   {
