@@ -3,7 +3,8 @@
 
 Vanilla stock sheets: N files per layer, 4 cols x 8 rows of direction cells
 (index == direction index, north first, clockwise). Locomotive has 256
-directions, wagons 128.
+views over a full turn; wagons have 128 over a half turn. Sampled wagon
+sheets must retain vanilla's back_equals_front flag in their prototypes.
 
 Writes <out>/<layer>/<i>.png for our direction i (i * total/dirs), plus a
 meta.json carrying each layer's vanilla shift (in tiles).
