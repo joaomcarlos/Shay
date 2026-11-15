@@ -19,6 +19,7 @@ data:extend
     hidden = true,
     max_health = 60,
     collision_box = {{-0.25, -0.25}, {0.25, 0.25}},
+    collision_mask = {layers = {player = true, is_object = true}, not_colliding_with_itself = true},
     selection_box = {{-0.45, -0.45}, {0.45, 0.45}},
     movement_speed = 0.2,
     distance_per_frame = 0.02,
