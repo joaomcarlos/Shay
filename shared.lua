@@ -19,6 +19,9 @@ shared.ramp_sprite = "shay-ramp"
 shared.direction_count = 16
 shared.graphics_dir = "__Shay__/graphics/entity/"
 
+-- Visual roof height only; turret combat hardpoints remain on the stock's centreline.
+shared.turret_lift = 0.9
+
 -- Turret hardpoints: stock-local {side, forward} tile offsets, +forward = toward nose
 shared.turrets =
 {
