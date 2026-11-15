@@ -62,11 +62,13 @@ shared.layer =
   equipment_grid = "shay-equipment-grid",
 }
 
--- Resupply: run back to the schedule's first station for more rail, then return to the last laid rail.
+-- Resupply: run back to the schedule's first station when a needed item runs low, then return to the last laid rail.
 shared.supply =
 {
   rail_low = 20,           -- auto-resupply when the consist holds fewer than this many rail items
   rail_full = 200,         -- stocked threshold the wait condition checks for
+  fill_low = 20,           -- same thresholds for landfill
+  fill_full = 200,
   wait_ticks = 3600,       -- give up waiting at the station after this
   arrive_wait = 120,       -- ticks to pause at the frontier rail before resuming
 }

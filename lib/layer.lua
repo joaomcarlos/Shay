@@ -68,12 +68,45 @@ local store = function(train, name, count)
   end
 end
 
-local rail_count = function(train)
+-- Consumables the consist needs: low trips the auto-resupply, full is what the station waits for.
+local supplies =
+{
+  [rail_item] = {low = shared.supply.rail_low, full = shared.supply.rail_full},
+  [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full}
+}
+local supply_items = {rail_item, fill_item}
+
+local count_item = function(train, name)
   local count = 0
   for _, wagon in pairs(train.cargo_wagons) do
-    count = count + wagon.get_inventory(defines.inventory.cargo_wagon).get_item_count{name = rail_item}
+    count = count + wagon.get_inventory(defines.inventory.cargo_wagon).get_item_count{name = name}
   end
   return count
+end
+
+-- Items under their auto-trip threshold, in supply_items order.
+local low_supplies = function(train)
+  local low = {}
+  for _, name in pairs(supply_items) do
+    if count_item(train, name) < supplies[name].low then low[#low + 1] = name end
+  end
+  return low
+end
+
+-- Everything the trip went for reached its stocked threshold.
+local stocked = function(train, needs)
+  for _, name in pairs(needs) do
+    if count_item(train, name) < supplies[name].full then return false end
+  end
+  return true
+end
+
+-- Still under an auto-trip threshold: the station didn't fix what the trip went for.
+local short = function(train, needs)
+  for _, name in pairs(needs) do
+    if count_item(train, name) < supplies[name].low then return true end
+  end
+  return false
 end
 
 local train_records = function(train)
@@ -105,16 +138,17 @@ local supply_station = function(saved)
   end
 end
 
-local resupply_schedule = function(station, last_rail)
+local resupply_schedule = function(station, last_rail, needs)
+  local wait_conditions = {}
+  for _, name in pairs(needs) do
+    wait_conditions[#wait_conditions + 1] = {type = "item_count", compare_type = "and", condition = {first_signal = {type = "item", name = name}, comparator = ">=", constant = supplies[name].full}}
+  end
+  wait_conditions[#wait_conditions + 1] = {type = "time", compare_type = "or", ticks = shared.supply.wait_ticks}
   local records =
   {
     {
       station = station,
-      wait_conditions =
-      {
-        {type = "item_count", compare_type = "and", condition = {first_signal = {type = "item", name = rail_item}, comparator = ">=", constant = shared.supply.rail_full}},
-        {type = "time", compare_type = "or", ticks = shared.supply.wait_ticks}
-      }
+      wait_conditions = wait_conditions
     }
   }
   -- The return leg's own wait outlasts arrive_wait so the script finishes the trip before the schedule loops back to the station.
@@ -143,11 +177,15 @@ local begin_resupply = function(record)
   if not station then return false end
   local last_rail = record.last_rail and record.last_rail.valid and record.last_rail or nil
   local records = train_records(train)
+  -- A manual trigger restocks rail by default; the auto trigger asks only for what's low.
+  local needs = low_supplies(train)
+  if #needs == 0 then needs = {rail_item} end
   local resupply =
   {
     phase = "outbound",
     station = station,
     last_rail = last_rail,
+    needs = needs,
     resume_cruise = false,
     restore_manual = train.manual_mode,
     saved = saved
@@ -167,13 +205,15 @@ local begin_resupply = function(record)
   local schedule = train.get_schedule()
   schedule.group = nil
   schedule.clear_interrupts()
-  train.schedule = resupply_schedule(station, last_rail)
+  train.schedule = resupply_schedule(station, last_rail, needs)
   train.manual_mode = false
   return true
 end
 
 local finish_resupply = function(record)
   local resupply = record.resupply
+  -- Came back still short of something it went for: the station can't fix this, so stop auto-tripping.
+  if short(record.entity.train, resupply.needs) then record.auto_resupply_off = true end
   local loco = record.entity
   local cruise = resupply.resume_cruise
   local last_rail = resupply.last_rail
@@ -211,7 +251,7 @@ local step_resupply = function(record, tick)
     return
   end
   -- No frontier to go back to: the trip ends once the station has stocked the train or the wait times out.
-  if resupply.phase == "station" and (rail_count(train) >= shared.supply.rail_full or tick >= resupply.station_tick + shared.supply.wait_ticks) then
+  if resupply.phase == "station" and (stocked(train, resupply.needs) or tick >= resupply.station_tick + shared.supply.wait_ticks) then
     resupply.resume_cruise = false
     finish_resupply(record)
   end
@@ -264,22 +304,23 @@ local fill_water = function(record, tick, position)
   local tiles = {}
   for index, tile in pairs(water) do
     if not take_item(loco.train, fill_item) then break end
+    record.auto_resupply_off = nil
     tiles[index] = {name = fill_tile, position = tile.position}
   end
   if #tiles > 0 then loco.surface.set_tiles(tiles) end
   if #tiles == #water then return true end
-  local resupply = not record.auto_resupply_off
-  if resupply and begin_resupply(record) then return false end
   if tick >= record.next_fill_warn then
     record.next_fill_warn = tick + warn_interval
     loco.force.print({"shay-message.out-of-landfill"})
-    if resupply then loco.force.print({"shay-message.no-supply-station"}) end
+    if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
   end
   return false
 end
 
 local lay_rail = function(record, tick)
   local loco = record.entity
+  -- About to run out of something it needs: head back to the supply station while there's still some in the cargo.
+  if not record.auto_resupply_off and #low_supplies(loco.train) > 0 and begin_resupply(record) then return end
   local surface, position = loco.surface, loco.position
   local cardinal = cardinals[math.floor(loco.orientation * 4 + 0.5) % 4]
   local vector = cardinal.vector
@@ -313,12 +354,10 @@ local lay_rail = function(record, tick)
       if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
     end
     if not take_item(loco.train, rail_item) then
-      local resupply = not record.auto_resupply_off and rail_count(loco.train) < shared.supply.rail_low
-      if resupply and begin_resupply(record) then return end
       if tick >= record.next_warn then
         record.next_warn = tick + warn_interval
         loco.force.print({"shay-message.out-of-rail"})
-        if resupply then loco.force.print({"shay-message.no-supply-station"}) end
+        if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
       end
       return
     end
