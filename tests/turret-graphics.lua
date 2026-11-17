@@ -28,7 +28,7 @@ local function near(a, b) assert(math.abs(a - b) < 1e-9) end
 assert(#prototypes == 2)
 local cooldowns = {[shared.mg_turret] = 1, [shared.cannon_turret] = 15}
 for _, entity in ipairs(prototypes) do
-  assert(entity.attack_parameters.cooldown == cooldowns[entity.name], entity.name .. " must fire eight times faster")
+  assert(entity.attack_parameters.cooldown == cooldowns[entity.name], entity.name .. " must fire at full rate")
   assert(entity.graphics_set.base_visualisation.render_layer == "higher-object-above")
   assert(entity.gun_animation_render_layer == "higher-object-above")
   assert(entity.gun_animation_secondary_draw_order == 1)
@@ -49,4 +49,4 @@ end
 assert(source.graphics_set.base_visualisation.render_layer == nil, "vanilla source was mutated")
 near(source.prepared_animation.layers[1].shift[2], -0.8)
 print("PASS: both turret prototypes lift all 17 graphics layers and muzzle/casing offsets without altering vanilla")
-print("PASS: mounted MG/cannon cooldowns are 1/15 ticks, eight times the original fire rate")
+print("PASS: mounted MG/cannon cooldowns are 1/15 ticks (MG every tick, cannon at vanilla rate)")
