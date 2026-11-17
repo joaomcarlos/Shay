@@ -101,10 +101,10 @@ local stocked = function(train, needs)
   return true
 end
 
--- Still under an auto-trip threshold: the station didn't fix what the trip went for.
+-- Still under the stocked threshold: the station didn't fix what the trip went for.
 local short = function(train, needs)
   for _, name in pairs(needs) do
-    if count_item(train, name) < supplies[name].low then return true end
+    if count_item(train, name) < supplies[name].full then return true end
   end
   return false
 end
@@ -116,6 +116,11 @@ local train_records = function(train)
     if record then records[#records + 1] = record end
   end
   return records
+end
+
+-- Auto-tripping is a consist decision: one record giving up (or resuming) applies to every Shay in the train.
+local set_auto_resupply = function(train, off)
+  for _, record in pairs(train_records(train)) do record.auto_resupply_off = off or nil end
 end
 
 -- The player's schedule (group, records, interrupts) is parked while the resupply schedule runs and put back afterwards.
@@ -213,7 +218,8 @@ end
 local finish_resupply = function(record)
   local resupply = record.resupply
   -- Came back still short of something it went for: the station can't fix this, so stop auto-tripping.
-  if short(record.entity.train, resupply.needs) then record.auto_resupply_off = true end
+  local unfulfilled = short(record.entity.train, resupply.needs)
+  if unfulfilled then set_auto_resupply(record.entity.train, true) end
   local loco = record.entity
   local cruise = resupply.resume_cruise
   local last_rail = resupply.last_rail
@@ -225,7 +231,7 @@ local finish_resupply = function(record)
     end
   end
   end_resupply(record, cruise)
-  loco.force.print({"shay-message.resupply-done"})
+  loco.force.print(unfulfilled and {"shay-message.resupply-unfulfilled"} or {"shay-message.resupply-done"})
 end
 
 local abort_resupply = function(record, message, cruise)
@@ -304,7 +310,7 @@ local fill_water = function(record, tick, position)
   local tiles = {}
   for index, tile in pairs(water) do
     if not take_item(loco.train, fill_item) then break end
-    record.auto_resupply_off = nil
+    set_auto_resupply(loco.train)
     tiles[index] = {name = fill_tile, position = tile.position}
   end
   if #tiles > 0 then loco.surface.set_tiles(tiles) end
@@ -361,7 +367,7 @@ local lay_rail = function(record, tick)
       end
       return
     end
-    record.auto_resupply_off = nil
+    set_auto_resupply(loco.train)
     record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
     end_position, best_reach = next_position, best_reach + rail_length
   end
@@ -492,7 +498,7 @@ local check_resupply = function(train, record)
     -- Automatic mode backs out of a dead end only with a locomotive facing the other way.
     local stuck = resupply.phase == "outbound" and #train.locomotives.back_movers == 0
     -- A failed trip won't fix itself, so the auto trigger stays off until rail is laid again; the hotkey still works.
-    record.auto_resupply_off = true
+    set_auto_resupply(train, true)
     abort_resupply(record, stuck and {"shay-message.resupply-dead-end"} or {"shay-message.resupply-no-path", resupply.station}, resupply.resume_cruise)
   end
 end
