@@ -10,7 +10,6 @@ local nose_reach = 3
 local rail_search_radius = 6
 local lookahead = nose_reach + 6
 local max_rails_per_lay = 3
-local grind_width = 1.2
 local warn_interval = 300
 
 local cardinals =
@@ -353,8 +352,9 @@ local lay_rail = function(record, tick)
     local next_position = {x = end_position.x + vector.x * rail_length, y = end_position.y + vector.y * rail_length}
     if not fill_water(record, tick, next_position) then return end
     if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
-      -- A tree or rock sitting on the footprint beyond the grinder's reach would stall the train at the frontier; eat it where it stands.
-      for _, entity in pairs(surface.find_entities_filtered{position = next_position, radius = 2}) do
+      -- Only eat what the rail would actually collide with: the exact 2x2 cell, so trackside builds are never touched.
+      local area = {{next_position.x - 1, next_position.y - 1}, {next_position.x + 1, next_position.y + 1}}
+      for _, entity in pairs(surface.find_entities_filtered{area = area}) do
         if grindable(record, entity) then destroy_obstacle(record, entity) end
       end
       if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
@@ -370,22 +370,6 @@ local lay_rail = function(record, tick)
     set_auto_resupply(loco.train)
     record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
     end_position, best_reach = next_position, best_reach + rail_length
-  end
-end
-
-local grind = function(record)
-  local loco = record.entity
-  local surface = loco.surface
-  local from = frame.place(loco, shared.layer.grinder_offset)
-  local forward = frame.forward(loco.orientation)
-  local to = {x = from.x + forward.x * shared.layer.grind_reach, y = from.y + forward.y * shared.layer.grind_reach}
-  local area =
-  {
-    {math.min(from.x, to.x) - grind_width, math.min(from.y, to.y) - grind_width},
-    {math.max(from.x, to.x) + grind_width, math.max(from.y, to.y) + grind_width}
-  }
-  for _, entity in pairs(surface.find_entities_filtered{area = area}) do
-    if grindable(record, entity) then destroy_obstacle(record, entity) end
   end
 end
 
@@ -439,7 +423,6 @@ local update = function(record, tick)
   show_grinder(record, pushing)
   if not pushing then return end
   if tick % shared.layer.rail_lay_interval == 0 then lay_rail(record, tick) end
-  if tick % shared.layer.grind_interval == 0 then grind(record) end
 end
 
 local set_cruise = function(record, cruise)

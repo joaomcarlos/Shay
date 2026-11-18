@@ -10,7 +10,7 @@ frame.right = function(orientation)
   return {x = math.cos(angle), y = math.sin(angle)}
 end
 
--- shared.lua offsets are {side, forward}: every hardpoint lies along the stock's length and grinder_offset sits at the nose.
+-- shared.lua offsets are {side, forward}: every hardpoint lies along the stock's length.
 frame.rotate = function(orientation, offset)
   local forward, right = frame.forward(orientation), frame.right(orientation)
   return {x = right.x * offset[1] + forward.x * offset[2], y = right.y * offset[1] + forward.y * offset[2]}

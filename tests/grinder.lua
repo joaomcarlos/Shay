@@ -28,9 +28,7 @@ rendering = {draw_animation = function(options)
 end}
 
 local shared = require("shared")
--- The corridor must span from the nose (3.0) past the drill tip so no obstacle can hide in front of it.
-assert(shared.layer.grinder_offset[2] == 3.0, "grinding corridor must start at the nose")
-assert(shared.layer.grinder_offset[2] + shared.layer.grind_reach > shared.layer.grinder_visual_offset[2], "corridor must reach past the drill centre")
+assert(shared.layer.grinder_visual_offset[2] == 4.2, "drill centre stays ahead of the nose")
 local animations = {}
 data = {extend = function(_, entries) for _, entry in ipairs(entries) do animations[entry.name] = entry end end}
 require("prototypes.overlays")
