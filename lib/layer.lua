@@ -389,13 +389,9 @@ local grind = function(record)
   end
 end
 
+-- The drill is bolted to the nose: always drawn while the loco has a record, spinning only when pushing.
 local show_grinder = function(record, moving)
   local loco = record.entity
-  if not moving then
-    if record.grinder and record.grinder.valid then record.grinder.destroy() end
-    record.grinder = nil
-    return
-  end
   local target = {entity = loco, offset = frame.rotate(loco.orientation, shared.layer.grinder_visual_offset)}
   -- The drill art points south; rotate it to face away from the locomotive nose.
   local orientation = (loco.orientation + 0.5) % 1
@@ -403,6 +399,7 @@ local show_grinder = function(record, moving)
     record.grinder.target = target
     record.grinder.orientation = orientation
     record.grinder.render_layer = "higher-object-above"
+    record.grinder.animation_speed = moving and 0.5 or 0
     return
   end
   record.grinder = rendering.draw_animation
@@ -412,7 +409,7 @@ local show_grinder = function(record, moving)
     surface = loco.surface,
     render_layer = "higher-object-above",
     orientation = orientation,
-    animation_speed = 0.5
+    animation_speed = moving and 0.5 or 0
   }
 end
 

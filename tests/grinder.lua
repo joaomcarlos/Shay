@@ -22,13 +22,15 @@ local drawn, draws = nil, 0
 rendering = {draw_animation = function(options)
   drawn = options
   draws = draws + 1
-  local object = {valid = true, target = options.target, orientation = options.orientation, render_layer = options.render_layer}
+  local object = {valid = true, target = options.target, orientation = options.orientation, render_layer = options.render_layer, animation_speed = options.animation_speed}
   object.destroy = function() object.valid = false end
   return object
 end}
 
 local shared = require("shared")
-assert(shared.layer.grinder_offset[1] == 0 and shared.layer.grinder_offset[2] == 3.6, "visual scaling must not move the grinding corridor")
+-- The corridor must span from the nose (3.0) past the drill tip so no obstacle can hide in front of it.
+assert(shared.layer.grinder_offset[2] == 3.0, "grinding corridor must start at the nose")
+assert(shared.layer.grinder_offset[2] + shared.layer.grind_reach > shared.layer.grinder_visual_offset[2], "corridor must reach past the drill centre")
 local animations = {}
 data = {extend = function(_, entries) for _, entry in ipairs(entries) do animations[entry.name] = entry end end}
 require("prototypes.overlays")
@@ -61,10 +63,13 @@ for _, case in ipairs{
   object.render_layer = "object"
 end
 assert(drawn.orientation == 0.5, "new animations must start facing the nose")
+local grinder = storage.layer.locos[1].grinder
+assert(grinder.animation_speed == 0.5, "pushing spins the drill")
 loco.train.speed = 0
 layer.events[events.on_tick]{tick = 1}
-assert(storage.layer.locos[1].grinder == nil, "stopping must remove the drill")
+assert(storage.layer.locos[1].grinder == grinder and grinder.valid, "stopping must not hide the drill")
+assert(grinder.animation_speed == 0, "a stopped drill freezes instead of hiding")
 loco.train.speed = 0.1
 layer.events[events.on_tick]{tick = 1}
-assert(draws == 2, "moving again must recreate the drill")
-print("PASS: drill position, facing and layer in all cardinals, reuse, stop and restart")
+assert(draws == 1 and grinder.animation_speed == 0.5, "moving again must restart the same drill")
+print("PASS: drill position, facing and layer in all cardinals, spin gating without hide/show")
