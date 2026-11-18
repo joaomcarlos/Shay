@@ -56,9 +56,9 @@ shared.layer =
 {
   cruise_speed = 0.15,         -- tiles/tick self-drive throttle (~32 km/h, vanilla max is 1.2)
   grind_interval = 15,         -- ticks between obstacle-grind checks while pushing forward
-  grind_reach = 1.8,           -- tiles ahead of the nose
+  grind_reach = 2.4,           -- corridor length: nose to drill tip
   rail_lay_interval = 5,       -- ticks between rail extension attempts
-  grinder_offset = {0, 3.6},   -- physical grinding corridor, stock-local
+  grinder_offset = {0, 3.0},   -- physical grinding corridor start, at the nose, stock-local
   grinder_visual_offset = {0, 4.2}, -- enlarged drill centre; its base stays at the nose
   equipment_grid = "shay-equipment-grid",
 }
