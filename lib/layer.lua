@@ -22,9 +22,18 @@ local cardinals =
 
 local script_data
 
+-- +1 when positive train speed carries this loco nose-first. Fixed by how the
+-- loco sits in the consist, so it's cached per record and refreshed on train_created.
+local heading = function(loco)
+  for _, front_mover in pairs(loco.train.locomotives.front_movers) do
+    if front_mover.unit_number == loco.unit_number then return 1 end
+  end
+  return -1
+end
+
 local add = function(loco)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0}
+  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, heading = heading(loco)}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -33,14 +42,6 @@ local remove = function(unit_number)
   if not record then return end
   script_data.locos[unit_number] = nil
   if record.grinder and record.grinder.valid then record.grinder.destroy() end
-end
-
--- +1 when positive train speed carries this loco nose-first.
-local heading = function(loco)
-  for _, front_mover in pairs(loco.train.locomotives.front_movers) do
-    if front_mover.unit_number == loco.unit_number then return 1 end
-  end
-  return -1
 end
 
 -- A passenger braking or reversing gets the throttle back for that tick.
@@ -422,7 +423,9 @@ local update = function(record, tick)
   end
   local loco = record.entity
   local train = loco.train
-  local sign = heading(loco)
+  -- Records from before the cache existed pick their sign up on the first tick.
+  local sign = record.heading
+  if not sign then sign = heading(loco); record.heading = sign end
   if record.cruise and not overridden(train) then train.speed = shared.layer.cruise_speed * sign end
   local pushing = pushing_forward(record, sign)
   show_grinder(record, pushing)
@@ -486,6 +489,11 @@ local check_resupply = function(train, record)
     set_auto_resupply(train, true)
     abort_resupply(record, stuck and {"shay-message.resupply-dead-end"} or {"shay-message.resupply-no-path", resupply.station}, resupply.resume_cruise)
   end
+end
+
+-- Coupling or splitting rebuilds the consist: cached front-mover signs go stale.
+local on_train_created = function(event)
+  for _, record in pairs(train_records(event.train)) do record.heading = heading(record.entity) end
 end
 
 -- Switched to automatic (by the player or a schedule interrupt), the train is no longer ours to drive.
@@ -564,6 +572,7 @@ layer.events =
 {
   [defines.events.on_tick] = on_tick,
   [defines.events.on_train_changed_state] = on_train_changed_state,
+  [defines.events.on_train_created] = on_train_created,
   [defines.events.on_built_entity] = on_built,
   [defines.events.on_robot_built_entity] = on_built,
   [defines.events.script_raised_built] = on_built,
