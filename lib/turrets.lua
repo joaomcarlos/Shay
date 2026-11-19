@@ -11,6 +11,11 @@ local ammo =
 
 local script_data
 
+-- Sweep state is derived from the records, so it stays out of storage and is
+-- rebuilt on every load; only the entities in it are persisted (via records).
+local refill_queue = {}
+local refill_index = 1
+
 local arm = function(stock)
   if script_data.stock[stock.unit_number] then return end
   local record = {entity = stock, turrets = {}}
@@ -23,6 +28,7 @@ local arm = function(stock)
     }
     turret.get_inventory(defines.inventory.turret_ammo).insert{name = ammo[hardpoint.entity], count = refill_count}
     record.turrets[slot] = turret
+    refill_queue[#refill_queue + 1] = turret
     script_data.registrations[script.register_on_object_destroyed(turret)] = {stock = stock.unit_number, slot = slot}
   end
   script_data.stock[stock.unit_number] = record
@@ -70,6 +76,35 @@ local on_object_destroyed = function(event)
   disarm(registration.stock)
 end
 
+-- One refill sweep takes refill_interval ticks: each tick checks a slice of the
+-- queue, so the scan never lands on one tick no matter how many turrets exist.
+local refill_step = function()
+  local queue = refill_queue
+  local count = #queue
+  if count == 0 then return end
+  local budget = math.ceil(count / refill_interval)
+  local index = refill_index
+  local processed = 0
+  while processed < budget and count > 0 do
+    if index > count then index = 1 end
+    local turret = queue[index]
+    if turret.valid then
+      local inventory = turret.get_inventory(defines.inventory.turret_ammo)
+      if inventory.is_empty() then inventory.insert{name = ammo[turret.name], count = refill_count} end
+      index = index + 1
+      processed = processed + 1
+    else
+      -- Dead turrets come out by swap-with-last so the sweep stays dense.
+      queue[index] = queue[count]
+      queue[count] = nil
+      count = count - 1
+    end
+  end
+  refill_index = index
+end
+
+local teleport_position = {x = 0, y = 0}
+
 -- Turrets aim themselves; only their position follows the stock. A stock only turns while it moves.
 local on_tick = function()
   for _, record in pairs(script_data.stock) do
@@ -77,21 +112,11 @@ local on_tick = function()
     if stock.valid and stock.speed ~= 0 then
       local hardpoints = shared.turrets[stock.name]
       for slot, turret in pairs(record.turrets) do
-        if turret.valid then turret.teleport(frame.place(stock, hardpoints[slot].offset)) end
+        if turret.valid then turret.teleport(frame.place_into(stock, hardpoints[slot].offset, teleport_position)) end
       end
     end
   end
-end
-
-local refill = function()
-  for _, record in pairs(script_data.stock) do
-    for _, turret in pairs(record.turrets) do
-      if turret.valid then
-        local inventory = turret.get_inventory(defines.inventory.turret_ammo)
-        if inventory.is_empty() then inventory.insert{name = ammo[turret.name], count = refill_count} end
-      end
-    end
-  end
+  refill_step()
 end
 
 local turrets = {}
@@ -99,16 +124,22 @@ local turrets = {}
 turrets.on_init = function()
   storage.turrets = {stock = {}, registrations = {}}
   script_data = storage.turrets
+  refill_queue = {}
+  refill_index = 1
 end
 
+-- on_load may only read storage: the sweep queue is rebuilt from the records,
+-- which also covers saves from before the queue existed.
 turrets.on_load = function()
   script_data = storage.turrets
+  refill_queue = {}
+  for _, record in pairs(script_data.stock) do
+    for _, turret in pairs(record.turrets) do
+      refill_queue[#refill_queue + 1] = turret
+    end
+  end
+  refill_index = 1
 end
-
-turrets.on_nth_tick =
-{
-  [refill_interval] = refill
-}
 
 turrets.events =
 {
