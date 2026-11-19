@@ -115,13 +115,24 @@ local deploy = function(record, tick)
   record.next_patrol = tick + shared.ramp.repatrol_ticks
 end
 
-local update_deployed = function(record, tick)
-  local wagon = record.entity
-  local repatrol = tick >= record.next_patrol
+-- One pass per wagon: a bot is either patrolling (straggle check, ring rotation)
+-- or recalling (despawn at the wagon) — never both on the same tick.
+local update_bots = function(record, tick, wagon_position)
+  local repatrol = record.state == states.deployed and tick >= record.next_patrol
   if repatrol then record.next_patrol = tick + shared.ramp.repatrol_ticks end
-  for _, bot in pairs(record.bots) do
-    if bot.entity.valid and not bot.recalling then
-      if frame.distance(bot.entity.position, wagon.position) > straggle_distance then
+  local reissue = tick % recall_reissue_ticks < update_interval
+  local recalling = record.state == states.recalling
+  for unit_number, bot in pairs(record.bots) do
+    if bot.entity.valid then
+      local position = bot.entity.position
+      if recalling or bot.recalling then
+        if frame.distance(position, wagon_position) <= shared.ramp.recall_arrive then
+          record.bots[unit_number] = nil
+          bot.entity.destroy()
+        elseif reissue or not bot.recalling then
+          recall(record, bot)
+        end
+      elseif frame.distance(position, wagon_position) > straggle_distance then
         recall(record, bot)
       elseif repatrol then
         bot.ring = bot.ring % bot_count() + 1
@@ -129,34 +140,19 @@ local update_deployed = function(record, tick)
       end
     end
   end
-end
-
-local update_recalling = function(record, tick)
-  local wagon = record.entity
-  local reissue = tick % recall_reissue_ticks < update_interval
-  for unit_number, bot in pairs(record.bots) do
-    if bot.entity.valid and (bot.recalling or record.state == states.recalling) then
-      if frame.distance(bot.entity.position, wagon.position) <= shared.ramp.recall_arrive then
-        record.bots[unit_number] = nil
-        bot.entity.destroy()
-      elseif reissue or not bot.recalling then
-        recall(record, bot)
-      end
-    end
-  end
-  if record.state == states.recalling and next(record.bots) == nil then record.state = states.parked end
+  if recalling and next(record.bots) == nil then record.state = states.parked end
 end
 
 local update = function(record, tick)
-  local slow = math.abs(record.entity.train.speed) < shared.ramp.deploy_speed
+  local wagon = record.entity
+  local slow = math.abs(wagon.train.speed) < shared.ramp.deploy_speed
   if slow and record.state ~= states.deployed then
     deploy(record, tick)
   elseif not slow and record.state == states.deployed then
     hide_ramps(record)
     record.state = states.recalling
   end
-  if record.state == states.deployed then update_deployed(record, tick) end
-  update_recalling(record, tick)
+  update_bots(record, tick, wagon.position)
 end
 
 local on_built = function(event)
