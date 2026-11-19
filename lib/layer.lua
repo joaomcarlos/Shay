@@ -374,25 +374,30 @@ local lay_rail = function(record, tick)
 end
 
 -- The drill is bolted to the nose: always drawn while the loco has a record, spinning only when pushing.
+-- An entity-bound target follows the stock on its own, so the render object only
+-- hears about real orientation changes — a parked or straight-running train writes nothing.
 local show_grinder = function(record, moving)
   local loco = record.entity
-  local target = {entity = loco, offset = frame.rotate(loco.orientation, shared.layer.grinder_visual_offset)}
-  -- The drill art points south; rotate it to face away from the locomotive nose.
-  local orientation = (loco.orientation + 0.5) % 1
   if record.grinder and record.grinder.valid then
-    record.grinder.target = target
-    record.grinder.orientation = orientation
-    record.grinder.render_layer = "higher-object-above"
-    record.grinder.animation_speed = moving and 0.5 or 0
+    if loco.orientation ~= record.grinder_orientation then
+      record.grinder_orientation = loco.orientation
+      record.grinder.target = {entity = loco, offset = frame.rotate(loco.orientation, shared.layer.grinder_visual_offset)}
+      -- The drill art points south; rotate it to face away from the locomotive nose.
+      record.grinder.orientation = (loco.orientation + 0.5) % 1
+    end
+    local spin = moving and 0.5 or 0
+    if record.grinder.animation_speed ~= spin then record.grinder.animation_speed = spin end
+    if record.grinder.render_layer ~= "higher-object-above" then record.grinder.render_layer = "higher-object-above" end
     return
   end
+  record.grinder_orientation = loco.orientation
   record.grinder = rendering.draw_animation
   {
     animation = shared.grinder_animation,
-    target = target,
+    target = {entity = loco, offset = frame.rotate(loco.orientation, shared.layer.grinder_visual_offset)},
     surface = loco.surface,
     render_layer = "higher-object-above",
-    orientation = orientation,
+    orientation = (loco.orientation + 0.5) % 1,
     animation_speed = moving and 0.5 or 0
   }
 end
