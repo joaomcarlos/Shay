@@ -1,23 +1,193 @@
 local shared = require("shared")
 local frame = require("lib.frame")
 
-local rail_entity = "straight-rail"
 local rail_item = "rail"
 local fill_item = "landfill"
 local fill_tile = "landfill"
-local rail_length = 2
 local nose_reach = 3
 local rail_search_radius = 6
 local lookahead = nose_reach + 6
 local max_rails_per_lay = 3
 local warn_interval = 300
 
-local cardinals =
+local straight_rail = "straight-rail"
+local curve_rail_a = "curved-rail-a"
+local curve_rail_b = "curved-rail-b"
+
+-- Track headings are eighth turns (entity direction = dir * 2): 0 north through
+-- 7 northwest. Travel dir is the heading a train holds while on a piece.
+local root2 = math.sqrt(0.5)
+local vectors =
 {
-  [0] = {vector = {x = 0, y = -1}, direction = defines.direction.north},
-  [1] = {vector = {x = 1, y = 0}, direction = defines.direction.east},
-  [2] = {vector = {x = 0, y = 1}, direction = defines.direction.south},
-  [3] = {vector = {x = -1, y = 0}, direction = defines.direction.west}
+  [0] = {x = 0, y = -1},
+  {x = root2, y = -root2}, {x = 1, y = 0}, {x = root2, y = root2},
+  {x = 0, y = 1}, {x = -root2, y = root2},
+  {x = -1, y = 0}, {x = -root2, y = -root2}
+}
+
+-- Rail continuation table: track[travel_dir][type][direction] gives the next
+-- piece either as `forced` (curves have a single continuation) or as an array
+-- of three records indexed by steering input + 1 (left, straight, right at
+-- straight pieces). A record is {type, direction, dx, dy, tdelta}: entity name
+-- and eighth-turn direction, centre offset from the current piece's centre, and
+-- the travel-dir change after the piece. Direction minimization gives straight
+-- rails only directions 0-3 (the axis, not a heading): southbound still reads
+-- direction 0. half-diagonal-rail never appears: it is the planner's phase
+-- piece, never a chain continuation, so a frontier on one just stops the lay.
+local track =
+{
+  [0] =
+  {
+    [straight_rail] =
+    {
+      [0] =
+      {
+        {curve_rail_a, 0, 0, -3, 0},
+        {straight_rail, 0, 0, -2, 0},
+        {curve_rail_a, 1, 0, -3, 0}
+      }
+    },
+    [curve_rail_a] =
+    {
+      [0] = {forced = {curve_rail_b, 0, -2, -5, -1}},
+      [1] = {forced = {curve_rail_b, 1, 2, -5, 1}},
+      [4] = {forced = {straight_rail, 0, 0, -3, 0}},
+      [5] = {forced = {straight_rail, 0, 0, -3, 0}}
+    }
+  },
+  [1] =
+  {
+    [straight_rail] =
+    {
+      [1] =
+      {
+        {curve_rail_b, 5, 3, -3, 0},
+        {straight_rail, 1, 2, -2, 0},
+        {curve_rail_b, 6, 3, -3, 0}
+      }
+    },
+    [curve_rail_b] =
+    {
+      [1] = {forced = {straight_rail, 1, 3, -3, 0}},
+      [2] = {forced = {straight_rail, 1, 3, -3, 0}},
+      [5] = {forced = {curve_rail_a, 5, 2, -5, -1}},
+      [6] = {forced = {curve_rail_a, 6, 5, -2, 1}}
+    }
+  },
+  [2] =
+  {
+    [straight_rail] =
+    {
+      [2] =
+      {
+        {curve_rail_a, 2, 3, 0, 0},
+        {straight_rail, 2, 2, 0, 0},
+        {curve_rail_a, 3, 3, 0, 0}
+      }
+    },
+    [curve_rail_a] =
+    {
+      [2] = {forced = {curve_rail_b, 2, 5, -2, -1}},
+      [3] = {forced = {curve_rail_b, 3, 5, 2, 1}},
+      [6] = {forced = {straight_rail, 2, 3, 0, 0}},
+      [7] = {forced = {straight_rail, 2, 3, 0, 0}}
+    }
+  },
+  [3] =
+  {
+    [straight_rail] =
+    {
+      [3] =
+      {
+        {curve_rail_b, 7, 3, 3, 0},
+        {straight_rail, 3, 2, 2, 0},
+        {curve_rail_b, 0, 3, 3, 0}
+      }
+    },
+    [curve_rail_b] =
+    {
+      [0] = {forced = {curve_rail_a, 0, 2, 5, 1}},
+      [3] = {forced = {straight_rail, 3, 3, 3, 0}},
+      [4] = {forced = {straight_rail, 3, 3, 3, 0}},
+      [7] = {forced = {curve_rail_a, 7, 5, 2, -1}}
+    }
+  },
+  [4] =
+  {
+    [straight_rail] =
+    {
+      [0] =
+      {
+        {curve_rail_a, 4, 0, 3, 0},
+        {straight_rail, 0, 0, 2, 0},
+        {curve_rail_a, 5, 0, 3, 0}
+      }
+    },
+    [curve_rail_a] =
+    {
+      [0] = {forced = {straight_rail, 0, 0, 3, 0}},
+      [1] = {forced = {straight_rail, 0, 0, 3, 0}},
+      [4] = {forced = {curve_rail_b, 4, 2, 5, -1}},
+      [5] = {forced = {curve_rail_b, 5, -2, 5, 1}}
+    }
+  },
+  [5] =
+  {
+    [straight_rail] =
+    {
+      [1] =
+      {
+        {curve_rail_b, 1, -3, 3, 0},
+        {straight_rail, 1, -2, 2, 0},
+        {curve_rail_b, 2, -3, 3, 0}
+      }
+    },
+    [curve_rail_b] =
+    {
+      [1] = {forced = {curve_rail_a, 1, -2, 5, -1}},
+      [2] = {forced = {curve_rail_a, 2, -5, 2, 1}},
+      [5] = {forced = {straight_rail, 1, -3, 3, 0}},
+      [6] = {forced = {straight_rail, 1, -3, 3, 0}}
+    }
+  },
+  [6] =
+  {
+    [straight_rail] =
+    {
+      [2] =
+      {
+        {curve_rail_a, 6, -3, 0, 0},
+        {straight_rail, 2, -2, 0, 0},
+        {curve_rail_a, 7, -3, 0, 0}
+      }
+    },
+    [curve_rail_a] =
+    {
+      [2] = {forced = {straight_rail, 2, -3, 0, 0}},
+      [3] = {forced = {straight_rail, 2, -3, 0, 0}},
+      [6] = {forced = {curve_rail_b, 6, -5, 2, -1}},
+      [7] = {forced = {curve_rail_b, 7, -5, -2, 1}}
+    }
+  },
+  [7] =
+  {
+    [straight_rail] =
+    {
+      [3] =
+      {
+        {curve_rail_b, 3, -3, -3, 0},
+        {straight_rail, 3, -2, -2, 0},
+        {curve_rail_b, 4, -3, -3, 0}
+      }
+    },
+    [curve_rail_b] =
+    {
+      [0] = {forced = {straight_rail, 3, -3, -3, 0}},
+      [3] = {forced = {curve_rail_a, 3, -5, -2, -1}},
+      [4] = {forced = {curve_rail_a, 4, -2, -5, 1}},
+      [7] = {forced = {straight_rail, 3, -3, -3, 0}}
+    }
+  }
 }
 
 local script_data
@@ -297,14 +467,17 @@ local destroy_obstacle = function(record, entity)
   if entity.valid then entity.destroy() end
 end
 
--- Water under the next rail's 2x2 footprint gets landfill first; returns false while water is left unfilled.
-local fill_water = function(record, tick, position)
+-- Water under the next rail's footprint gets landfill first; returns false while water is left unfilled.
+-- A straight piece sits in an exact 2x2 cell; diagonal straights and curves stand wider, so a radius fills them.
+local fill_water = function(record, tick, position, radius)
   local loco = record.entity
-  local water = loco.surface.find_tiles_filtered
-  {
-    area = {{position.x - 1, position.y - 1}, {position.x + 1, position.y + 1}},
-    collision_mask = "water_tile"
-  }
+  local filter = {collision_mask = "water_tile"}
+  if radius then
+    filter.position, filter.radius = position, radius
+  else
+    filter.area = {{position.x - 1, position.y - 1}, {position.x + 1, position.y + 1}}
+  end
+  local water = loco.surface.find_tiles_filtered(filter)
   if #water == 0 then return true end
   local tiles = {}
   for index, tile in pairs(water) do
@@ -322,42 +495,88 @@ local fill_water = function(record, tick, position)
   return false
 end
 
+-- A driver's steering only decides at straight pieces; curves and diagonals continue on their own.
+local steering = function(train)
+  for _, player in pairs(train.passengers) do
+    local direction = player.riding_state.direction
+    if direction == defines.riding.direction.left then return 0 end
+    if direction == defines.riding.direction.right then return 2 end
+  end
+  return 1
+end
+
+-- The frontier piece under the nose: any rail whose geometry can carry the
+-- consist's heading, furthest along it. Reseeds after mining, a teleport, and
+-- the first lay on player-built track — including mid-curve pieces, whose
+-- travel dir is whichever eighth turn the table accepts near the orientation.
+local find_frontier = function(record, desired)
+  local loco = record.entity
+  local position = loco.position
+  local best, best_dir, best_reach
+  for _, rail in pairs(loco.surface.find_entities_filtered
+  {
+    type = {straight_rail, curve_rail_a, curve_rail_b},
+    position = frame.place(loco, {0, nose_reach}),
+    radius = rail_search_radius
+  }) do
+    for _, travel_dir in pairs{desired, (desired + 1) % 8, (desired + 7) % 8} do
+      local options = track[travel_dir][rail.type]
+      if options and options[math.floor(rail.direction / 2)] then
+        local vector = vectors[travel_dir]
+        local dx, dy = rail.position.x - position.x, rail.position.y - position.y
+        local reach, lateral = dx * vector.x + dy * vector.y, dx * vector.y - dy * vector.x
+        -- Trackside builds and parallel lines are never the frontier: only the piece the nose overhangs is.
+        if math.abs(lateral) < 2.5 and (not best or reach > best_reach) then
+          best, best_dir, best_reach = rail, travel_dir, reach
+        end
+      end
+    end
+  end
+  return best, best_dir
+end
+
+-- The footprint a piece stands on: cardinal straights keep the exact 2x2 cell so
+-- trackside builds are never touched; diagonal straights and curves stand wider.
+local fill_radius = function(entity_type, direction)
+  if entity_type == straight_rail then
+    return direction % 2 == 1 and 2.2 or nil
+  end
+  return 3.2
+end
+
 local lay_rail = function(record, tick)
   local loco = record.entity
   -- About to run out of something it needs: head back to the supply station while there's still some in the cargo.
   if not record.auto_resupply_off and #low_supplies(loco.train) > 0 and begin_resupply(record) then return end
   local surface, position = loco.surface, loco.position
-  local cardinal = cardinals[math.floor(loco.orientation * 4 + 0.5) % 4]
-  local vector = cardinal.vector
-  local best, best_reach
-  for _, rail in pairs(surface.find_entities_filtered
-  {
-    type = rail_entity,
-    position = frame.place(loco, {0, nose_reach}),
-    radius = rail_search_radius
-  }) do
-    if rail.direction % 8 == cardinal.direction % 8 then
-      local dx, dy = rail.position.x - position.x, rail.position.y - position.y
-      local reach, lateral = dx * vector.x + dy * vector.y, dx * vector.y - dy * vector.x
-      if math.abs(lateral) < 1 and (not best or reach > best_reach) then
-        best, best_reach = rail, reach
-      end
-    end
+  local frontier, travel_dir = record.last_rail, record.travel_dir
+  -- A stale frontier (mined away, or the consist moved elsewhere) reseeds from the nose.
+  if not (frontier and frontier.valid and travel_dir and frame.distance(frontier.position, position) <= lookahead + rail_search_radius) then
+    frontier, travel_dir = find_frontier(record, math.floor(loco.orientation * 8 + 0.5) % 8)
+    record.last_rail, record.travel_dir = frontier, travel_dir
   end
-  if not best then return end
-  local end_position = best.position
-  -- Laying stays ahead of the train at any speed: once its nose overhangs the last rail, the next one can't be placed.
+  if not frontier then return end
+  local input = steering(loco.train)
+  -- Laying stays ahead of the train at any speed: once its nose overhangs the frontier, the next piece can't be placed.
   for _ = 1, max_rails_per_lay do
-    if best_reach >= lookahead then return end
-    local next_position = {x = end_position.x + vector.x * rail_length, y = end_position.y + vector.y * rail_length}
-    if not fill_water(record, tick, next_position) then return end
-    if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
-      -- Only eat what the rail would actually collide with: the exact 2x2 cell, so trackside builds are never touched.
-      local area = {{next_position.x - 1, next_position.y - 1}, {next_position.x + 1, next_position.y + 1}}
-      for _, entity in pairs(surface.find_entities_filtered{area = area}) do
+    local node = track[travel_dir][frontier.type]
+    node = node and node[math.floor(frontier.direction / 2)]
+    local step = node and (node.forced or node[input + 1])
+    -- A piece the table can't chain through (a half-diagonal, or the end of the line) just stops the lay.
+    if not step then return end
+    local entity_type, direction = step[1], step[2] * 2
+    local next_position = {x = frontier.position.x + step[3], y = frontier.position.y + step[4]}
+    local vector = vectors[travel_dir]
+    if (next_position.x - position.x) * vector.x + (next_position.y - position.y) * vector.y >= lookahead then return end
+    if not fill_water(record, tick, next_position, fill_radius(entity_type, direction)) then return end
+    if not surface.can_place_entity{name = entity_type, position = next_position, direction = direction, force = loco.force} then
+      -- Only eat what the rail would actually collide with: its footprint, so trackside builds are never touched.
+      local radius = fill_radius(entity_type, direction)
+      local filter = radius and {position = next_position, radius = radius} or {area = {{next_position.x - 1, next_position.y - 1}, {next_position.x + 1, next_position.y + 1}}}
+      for _, entity in pairs(surface.find_entities_filtered(filter)) do
         if grindable(record, entity) then destroy_obstacle(record, entity) end
       end
-      if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
+      if not surface.can_place_entity{name = entity_type, position = next_position, direction = direction, force = loco.force} then return end
     end
     if not take_item(loco.train, rail_item) then
       if tick >= record.next_warn then
@@ -368,8 +587,9 @@ local lay_rail = function(record, tick)
       return
     end
     set_auto_resupply(loco.train)
-    record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
-    end_position, best_reach = next_position, best_reach + rail_length
+    frontier = surface.create_entity{name = entity_type, position = next_position, direction = direction, force = loco.force, raise_built = true}
+    record.last_rail, travel_dir = frontier, (travel_dir + step[5]) % 8
+    record.travel_dir = travel_dir
   end
 end
 
