@@ -61,6 +61,7 @@ shared.layer =
   rail_lay_interval = 5,       -- ticks between rail extension attempts
   grinder_visual_offset = {0, 4.2}, -- enlarged drill centre; its base stays at the nose
   equipment_grid = "shay-equipment-grid",
+  pave_width = 1,              -- concrete paved this many tiles past each side of a new rail's 2x2 footprint
 }
 
 -- Resupply: run back to the schedule's first station when a needed item runs low, then return to the last laid rail.
@@ -72,6 +73,8 @@ shared.supply =
   fill_full = 200,
   cliff_low = 10,          -- same thresholds for cliff-explosives
   cliff_full = 50,
+  pave_low = 20,           -- and concrete
+  pave_full = 200,
   wait_ticks = 3600,       -- give up waiting at the station after this
   arrive_wait = 120,       -- ticks to pause at the frontier rail before resuming
 }

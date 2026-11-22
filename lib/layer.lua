@@ -5,6 +5,8 @@ local rail_item, rail_entity, rail_type
 local fill_item = "landfill"
 local cliff_item = "cliff-explosives"
 local fill_tile = "landfill"
+local pave_item = "concrete"
+local pave_tile = "concrete"
 local rail_length = 2
 local nose_reach = 3
 local rail_search_radius = 6
@@ -37,7 +39,7 @@ local triggers = {}
 
 local add = function(loco, player_index)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, next_cliff_warn = 0, relaid = {}, heading = heading(loco)}
+  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, next_cliff_warn = 0, next_pave_warn = 0, relaid = {}, heading = heading(loco)}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -99,9 +101,10 @@ local resolve_rail = function()
   {
     [rail_item] = {low = shared.supply.rail_low, full = shared.supply.rail_full},
     [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full},
-    [cliff_item] = {low = shared.supply.cliff_low, full = shared.supply.cliff_full}
+    [cliff_item] = {low = shared.supply.cliff_low, full = shared.supply.cliff_full},
+    [pave_item] = {low = shared.supply.pave_low, full = shared.supply.pave_full}
   }
-  supply_items = {rail_item, fill_item, cliff_item}
+  supply_items = {rail_item, fill_item, cliff_item, pave_item}
 end
 
 local count_item = function(train, name)
@@ -463,6 +466,51 @@ local fill_water = function(record, tick, position)
   return false
 end
 
+-- Tiles already at least as good as concrete: paving never downgrades or rewrites them.
+local keep_tile =
+{
+  ["concrete"] = true,
+  ["hazard-concrete-left"] = true, ["hazard-concrete-right"] = true,
+  ["refined-concrete"] = true,
+  ["refined-hazard-concrete-left"] = true, ["refined-hazard-concrete-right"] = true,
+  ["foundation"] = true, ["ice-platform"] = true, ["space-platform-foundation"] = true,
+  ["artificial-yumako-soil"] = true, ["artificial-jellynut-soil"] = true,
+  ["overgrowth-yumako-soil"] = true, ["overgrowth-jellynut-soil"] = true
+}
+
+-- Concrete under and around a just-laid rail: the 2x2 footprint plus pave_width on each side.
+-- Short cargo leaves the rest unpaved and never stops laying; water cells outside the footprint
+-- (fill_water already landfilled the footprint itself) are left alone.
+local pave = function(record, tick, position)
+  local loco = record.entity
+  local surface = loco.surface
+  local width = shared.layer.pave_width
+  local left, right = position.x - 1 - width, position.x + width
+  local top, bottom = position.y - 1 - width, position.y + width
+  local water = {}
+  for _, tile in pairs(surface.find_tiles_filtered{area = {{left, top}, {right + 1, bottom + 1}}, collision_mask = "water_tile"}) do
+    water[tile.position.x .. "," .. tile.position.y] = true
+  end
+  local tiles, ran_out = {}, false
+  for x = left, right do
+    for y = top, bottom do
+      if not water[x .. "," .. y] and not keep_tile[surface.get_tile{x = x, y = y}.name] then
+        if take_item(loco.train, pave_item) then
+          tiles[#tiles + 1] = {name = pave_tile, position = {x = x, y = y}}
+        else
+          ran_out = true
+        end
+      end
+    end
+  end
+  if #tiles > 0 then surface.set_tiles(tiles) end
+  if ran_out and tick >= record.next_pave_warn then
+    record.next_pave_warn = tick + warn_interval
+    loco.force.print({"shay-message.out-of-concrete"})
+    if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
+  end
+end
+
 local lay_rail = function(record, tick)
   local loco = record.entity
   -- About to run out of something it needs: head back to the supply station while there's still some in the cargo.
@@ -526,6 +574,7 @@ local lay_rail = function(record, tick)
     set_auto_resupply(loco.train)
     record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
     if record.mode == "maintenance" then record.relaid[record.last_rail.unit_number] = record.last_rail end
+    pave(record, tick, next_position)
     end_position, best_reach = next_position, best_reach + rail_length
   end
 end
