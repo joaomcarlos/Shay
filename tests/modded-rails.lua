@@ -76,7 +76,7 @@ local loco = {
   orientation = 0, position = {x = 0, y = 0}, surface = {},
   force = {print = function() end}
 }
-local counts = {["hl-rail"] = 500, landfill = 500}
+local counts = {["hl-rail"] = 500, landfill = 500, ["cliff-explosives"] = 500}
 local inventory = {
   remove = function(t) if (counts[t.name] or 0) >= t.count then counts[t.name] = counts[t.name] - t.count return t.count end return 0 end,
   insert = function(t) counts[t.name] = (counts[t.name] or 0) + t.count return t.count end,

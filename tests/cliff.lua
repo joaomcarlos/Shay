@@ -26,6 +26,8 @@ rendering = {draw_animation = function(options)
 end}
 
 local shared = require("shared")
+settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
+prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
 local layer = require("lib.layer")
 
 -- Northbound loco at the origin: the frontier rail sits at {0, -8}, so the next

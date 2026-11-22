@@ -195,7 +195,7 @@ local tick = function() layer.events[events.on_tick]{tick = 5} end
 
 -- Bulldozer: the consist tears up its own line behind it and stores the take.
 local s = setup()
-s.items.rail, s.items.landfill = 50, 50
+s.items.rail, s.items.landfill, s.items["cliff-explosives"] = 50, 50, 50
 rail(s, 0, 0)      -- under the loco
 rail(s, 0, 10.5)   -- straddles the wagon's tail: inside the protection radius and the sweep
 local eaten = {
@@ -237,7 +237,7 @@ assert(#prints == 0)
 
 -- Full cargo: what cannot be stored is left standing, and the warning is throttled.
 s = setup({rail = 50})
-s.items.rail, s.items.landfill = 50, 50
+s.items.rail, s.items.landfill, s.items["cliff-explosives"] = 50, 50, 50
 rail(s, 0, 0)
 local jammed = rail(s, 0, 12)
 local fits = furniture(s, "electric-pole", 3, 14)
@@ -251,7 +251,7 @@ assert(#prints == 1, "the full-cargo warning waits out warn_interval before repe
 
 -- Maintenance: the old line ahead is pulled up and relaid on the same heading.
 s = setup()
-s.items.rail, s.items.landfill = 50, 50
+s.items.rail, s.items.landfill, s.items["cliff-explosives"] = 50, 50, 50
 rail(s, 0, 0)
 local old = {
   rail(s, 0, -5), rail(s, 0, -7), rail(s, 0, -9),
