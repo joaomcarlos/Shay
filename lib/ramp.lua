@@ -5,7 +5,6 @@ local update_interval = 10
 local recall_reissue_ticks = 60
 local flank_offset = 1.2
 local track_clearance = 2
-local straggle_distance = 20
 local patrol_arrive = 1
 
 local states =
@@ -127,12 +126,18 @@ local update_bots = function(record, tick, wagon_position)
       local position = bot.entity.position
       if recalling or bot.recalling then
         if frame.distance(position, wagon_position) <= shared.ramp.recall_arrive then
-          record.bots[unit_number] = nil
-          bot.entity.destroy()
+          -- A leaving wagon boards its bots; a straggler just rejoins the ring.
+          if recalling then
+            record.bots[unit_number] = nil
+            bot.entity.destroy()
+          else
+            bot.recalling = false
+            patrol(record, bot)
+          end
         elseif reissue or not bot.recalling then
           recall(record, bot)
         end
-      elseif frame.distance(position, wagon_position) > straggle_distance then
+      elseif frame.distance(position, wagon_position) > shared.ramp.straggle_distance then
         recall(record, bot)
       elseif repatrol then
         bot.ring = bot.ring % bot_count() + 1

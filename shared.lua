@@ -79,7 +79,8 @@ shared.ramp =
   bot_spacing = 0.7,           -- tiles between parked bots along the flank
   patrol_radius = 6,           -- patrol ring radius around the wagon
   repatrol_ticks = 90,         -- ticks between patrol point re-issue
-  recall_arrive = 1.2,         -- despawn within this distance of the wagon
+  straggle_distance = 40,      -- a patrolling bot this far from the wagon is ordered back
+  recall_arrive = 1.2,         -- a recalled bot counts as home within this distance of the wagon
 }
 
 shared.custom_input_cruise = "shay-toggle-cruise"
