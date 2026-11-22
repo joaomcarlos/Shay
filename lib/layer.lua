@@ -36,7 +36,11 @@ local triggers = {}
 
 local add = function(loco)
   if script_data.locos[loco.unit_number] then return end
+<<<<<<< HEAD
   script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, heading = heading(loco)}
+=======
+  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, relaid = {}}
+>>>>>>> origin/feature/demolition-modes
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -316,6 +320,117 @@ local destroy_obstacle = function(record, entity)
   if entity.valid then entity.destroy() end
 end
 
+local demolish_span = 10
+local demolish_corridor = 4
+local carriage_half = 3.5
+local consist_rail_radius = 4.5
+
+-- What demolition is allowed to pull up: the line itself plus its trackside furniture.
+-- Everything else in rail_infrastructure (curves, elevated track, ramps, stations) stays:
+-- the mod cannot rebuild it, so tearing it out would only strand the consist.
+local demolishable_types =
+{
+  ["straight-rail"] = true,
+  ["rail-signal"] = true, ["rail-chain-signal"] = true,
+  ["electric-pole"] = true, ["lamp"] = true, ["wall"] = true
+}
+local demolish_scan = {}
+for entity_type in pairs(demolishable_types) do demolish_scan[#demolish_scan + 1] = entity_type end
+
+-- The rails the consist physically stands on are never demolition targets. A radius
+-- sweep stays correct at any orientation; a bounding-box area would not.
+local consist_rails = function(record)
+  local protected = {}
+  for _, carriage in pairs(record.entity.train.carriages) do
+    for _, rail in pairs(record.entity.surface.find_entities_filtered{position = carriage.position, radius = consist_rail_radius, type = rail_entity}) do
+      protected[rail] = true
+    end
+  end
+  return protected
+end
+
+local can_demolish = function(record, entity, protected)
+  if not entity.destructible or not demolishable_types[entity.type] or support_entities[entity.name] then return false end
+  if entity.force ~= record.entity.force then return false end
+  return not protected[entity]
+end
+
+-- Every product of one entity must fit before it is touched: a torn-up rail that
+-- cannot come aboard leaves a gap the train cannot cross.
+local can_store = function(train, products)
+  local needed = {}
+  for _, product in pairs(products or {}) do
+    if product.type == "item" then needed[product.name] = (needed[product.name] or 0) + (product.amount or product.amount_max or 1) end
+  end
+  for name, count in pairs(needed) do
+    for _, wagon in pairs(train.cargo_wagons) do
+      count = count - wagon.get_inventory(defines.inventory.cargo_wagon).get_insertable_count(name)
+      if count <= 0 then break end
+    end
+    if count > 0 then return false end
+  end
+  return true
+end
+
+-- One teardown pass shared by both demolition modes: direction 1 sweeps the corridor
+-- ahead of the consist along its heading, -1 sweeps behind it. Rails are taken only
+-- from the consist's own line; everything else goes from the trackside corridor.
+local demolish = function(record, tick, direction)
+  local loco = record.entity
+  local train = loco.train
+  local forward = frame.forward(loco.orientation)
+  local sign = heading(loco)
+  local dir = {x = forward.x * sign, y = forward.y * sign}
+  local right = {x = -dir.y, y = dir.x}
+  local project = function(position)
+    local dx, dy = position.x - loco.position.x, position.y - loco.position.y
+    return dx * dir.x + dy * dir.y, dx * right.x + dy * right.y
+  end
+  local front, rear = -math.huge, math.huge
+  for _, carriage in pairs(train.carriages) do
+    local reach = project(carriage.position)
+    front, rear = math.max(front, reach), math.min(rear, reach)
+  end
+  front, rear = front + carriage_half, rear - carriage_half
+
+  -- Relaid rails are immune until the consist has rolled over them. Without the marks
+  -- maintenance would eat its own fresh track and relay it again every pass forever.
+  record.relaid = record.relaid or {}
+  for id, rail in pairs(record.relaid) do
+    if not (rail.valid and project(rail.position) >= rear) then record.relaid[id] = nil end
+  end
+
+  local protected = consist_rails(record)
+  local near = direction > 0 and front or rear - demolish_span
+  local far = direction > 0 and front + demolish_span or rear
+  local left_top, right_bottom = {x = math.huge, y = math.huge}, {x = -math.huge, y = -math.huge}
+  for _, reach in pairs{near, far} do
+    for _, lateral in pairs{-demolish_corridor, demolish_corridor} do
+      local corner = {x = loco.position.x + dir.x * reach + right.x * lateral, y = loco.position.y + dir.y * reach + right.y * lateral}
+      left_top.x, left_top.y = math.min(left_top.x, corner.x), math.min(left_top.y, corner.y)
+      right_bottom.x, right_bottom.y = math.max(right_bottom.x, corner.x), math.max(right_bottom.y, corner.y)
+    end
+  end
+  local cargo_full = false
+  for _, entity in pairs(loco.surface.find_entities_filtered{area = {left_top, right_bottom}, type = demolish_scan}) do
+    local reach, lateral = project(entity.position)
+    local on_line = entity.type == rail_entity and math.abs(lateral) < 1
+    local trackside = entity.type ~= rail_entity and math.abs(lateral) <= demolish_corridor
+    if reach >= near and reach <= far and (on_line or trackside)
+      and can_demolish(record, entity, protected) and not record.relaid[entity.unit_number] then
+      if can_store(train, entity.prototype.mineable_properties.products) then
+        destroy_obstacle(record, entity)
+      else
+        cargo_full = true
+      end
+    end
+  end
+  if cargo_full and tick >= record.next_demolish_warn then
+    record.next_demolish_warn = tick + warn_interval
+    loco.force.print({"shay-message.demolish-cargo-full"})
+  end
+end
+
 -- Water under the next rail's 2x2 footprint gets landfill first; returns false while water is left unfilled.
 local fill_water = function(record, tick, position)
   local loco = record.entity
@@ -388,6 +503,7 @@ local lay_rail = function(record, tick)
     end
     set_auto_resupply(loco.train)
     record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
+    if record.mode == "maintenance" then record.relaid[record.last_rail.unit_number] = record.last_rail end
     end_position, best_reach = next_position, best_reach + rail_length
   end
 end
@@ -448,7 +564,16 @@ local update = function(record, tick)
   local pushing = pushing_forward(record, sign)
   show_grinder(record, pushing)
   if not pushing then return end
-  if tick % shared.layer.rail_lay_interval == 0 then lay_rail(record, tick) end
+  if tick % shared.layer.rail_lay_interval ~= 0 then return end
+  if record.mode == "off" then return end
+  if record.mode == "bulldozer" then
+    demolish(record, tick, -1)
+  elseif record.mode == "maintenance" then
+    demolish(record, tick, 1)
+    lay_rail(record, tick)
+  else
+    lay_rail(record, tick)
+  end
 end
 
 local set_cruise = function(record, cruise)
@@ -478,6 +603,23 @@ local on_toggle_cruise = function(event)
   end
   if not cruising then set_cruise(records[1], true) end
   player.create_local_flying_text{text = {cruising and "shay-message.cruise-off" or "shay-message.cruise-on"}, create_at_cursor = true}
+end
+
+local demolition_modes = {"lay", "bulldozer", "maintenance", "off"}
+
+local on_demolition_mode = function(event)
+  local player = game.get_player(event.player_index)
+  local vehicle = player.vehicle
+  if not (vehicle and vehicle.train) then return end
+  local records = train_records(vehicle.train)
+  if #records == 0 then return end
+  local next_index = 1
+  for index, mode in ipairs(demolition_modes) do
+    if mode == (records[1].mode or "lay") then next_index = index % #demolition_modes + 1 end
+  end
+  local mode = demolition_modes[next_index]
+  for _, record in pairs(records) do record.mode = mode ~= "lay" and mode or nil end
+  records[1].entity.force.print({"shay-message.mode-" .. mode})
 end
 
 local on_resupply = function(event)
@@ -584,7 +726,11 @@ local custom_inputs =
 {
   [shared.custom_input_cruise] = on_toggle_cruise,
   [shared.custom_input_resupply] = on_resupply,
+<<<<<<< HEAD
   [shared.custom_input_manual] = on_toggle_manual
+=======
+  [shared.custom_input_demolition] = on_demolition_mode
+>>>>>>> origin/feature/demolition-modes
 }
 
 local register_inputs = function()

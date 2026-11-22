@@ -19,5 +19,11 @@ data:extend
     name = shared.custom_input_manual,
     key_sequence = "J",
     consuming = "game-only"
+  },
+  {
+    type = "custom-input",
+    name = shared.custom_input_demolition,
+    key_sequence = "CONTROL + ALT + G",
+    consuming = "game-only"
   }
 }
