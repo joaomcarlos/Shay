@@ -70,6 +70,8 @@ shared.supply =
   rail_full = 200,         -- stocked threshold the wait condition checks for
   fill_low = 20,           -- same thresholds for landfill
   fill_full = 200,
+  cliff_low = 10,          -- same thresholds for cliff-explosives
+  cliff_full = 50,
   wait_ticks = 3600,       -- give up waiting at the station after this
   arrive_wait = 120,       -- ticks to pause at the frontier rail before resuming
 }
