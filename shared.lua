@@ -5,6 +5,8 @@ shared.gun_locomotive = "shay-gun-locomotive"     -- engine, tank cannon nose, M
 shared.mg_wagon = "shay-mg-wagon"                  -- wagon with 3 MG turrets
 shared.layer_locomotive = "shay-locomotive"        -- track layer, roboport grid, grinder nose, self-drive
 shared.ramp_wagon = "shay-ramp-wagon"              -- deploys sentry bots from side ramps
+shared.cannon_wagon = "shay-cannon-wagon"          -- artillery wagon body, its cannon chambers tank shells
+shared.cannon_wagon_gun = "shay-cannon-wagon-gun"  -- cannon-shell copy of the artillery wagon gun
 
 -- Script-driven support entities (never in player inventory)
 shared.cannon_turret = "shay-cannon-turret"
@@ -49,6 +51,7 @@ shared.colors =
   [shared.gun_locomotive] = {r = 0.62, g = 0.44, b = 0.26},
   [shared.mg_wagon] = {r = 0.31, g = 0.44, b = 0.58},
   [shared.ramp_wagon] = {r = 0.66, g = 0.36, b = 0.36},
+  [shared.cannon_wagon] = {r = 0.50, g = 0.30, b = 0.62},
 }
 
 -- Track-layer locomotive tuning

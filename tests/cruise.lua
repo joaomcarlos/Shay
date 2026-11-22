@@ -3,7 +3,7 @@ local events = {}
 for index, name in ipairs{
   "on_tick", "on_train_changed_state", "on_built_entity", "on_robot_built_entity",
   "script_raised_built", "script_raised_revive", "on_entity_cloned", "on_player_mined_entity",
-  "on_robot_mined_entity", "on_entity_died", "script_raised_destroy", "on_object_destroyed"
+  "on_robot_mined_entity", "on_entity_died", "script_raised_destroy", "on_object_destroyed", "on_train_created", "on_robot_pre_mined"
 } do events[name] = index end
 
 defines = {
@@ -30,7 +30,7 @@ game = {get_player = function(index) return players[index] end}
 
 local shared = require("shared")
 
-local prototypes = {}
+prototypes = {}
 data = {extend = function(_, entries) for _, entry in ipairs(entries) do prototypes[entry.name] = entry end end}
 require("settings")
 assert(prototypes[shared.setting_cruise_speed].setting_type == "runtime-per-user", "cruise speed is a per-player runtime setting")
@@ -39,6 +39,8 @@ assert(prototypes[shared.setting_cruise_speed].minimum_value == 0.1)
 assert(prototypes[shared.setting_cruise_speed].maximum_value == 0.6)
 assert(shared.layer.cruise_speed == 0.3, "default cruise throttle doubled toward FARL parity")
 
+settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}, get_player_settings = function() return {} end}
+prototypes.item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}
 local layer = require("lib.layer")
 layer.on_init()
 

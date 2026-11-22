@@ -3,7 +3,7 @@ local events = {}
 for index, name in ipairs{
   "on_tick", "on_train_changed_state", "on_built_entity", "on_robot_built_entity",
   "script_raised_built", "script_raised_revive", "on_entity_cloned", "on_player_mined_entity",
-  "on_robot_mined_entity", "on_entity_died", "script_raised_destroy", "on_object_destroyed"
+  "on_robot_mined_entity", "on_entity_died", "script_raised_destroy", "on_object_destroyed", "on_train_created", "on_robot_pre_mined"
 } do events[name] = index end
 
 defines = {
@@ -30,6 +30,8 @@ player = {}
 game = {get_player = function() return player end}
 
 local shared = require("shared")
+settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
+prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
 local layer = require("lib.layer")
 
 local world, next_unit, prints, texts, surface

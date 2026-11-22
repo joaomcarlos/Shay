@@ -110,6 +110,7 @@ def icons(vanilla):
         ("shay-locomotive", "locomotive", (134, 221, 133)),
         ("shay-mg-wagon", "cargo-wagon", (115, 181, 255)),
         ("shay-ramp-wagon", "cargo-wagon", (250, 126, 120)),
+        ("shay-cannon-wagon", "artillery-wagon", (170, 110, 215)),
     )
     for name, source, tint in recipes:
         tint_icon(vanilla / "graphics/icons" / f"{source}.png", tint).save(

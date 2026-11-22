@@ -34,14 +34,18 @@ function stock.pictures(name, back_equals_front)
 end
 
 -- A vanilla rolling stock entity renamed, with its own item and recipe cloned from the vanilla ones.
-function stock.clone(entity_type, vanilla, name)
+-- options.vanilla_pictures keeps the source graphics instead of our packed sheets.
+function stock.clone(entity_type, vanilla, name, options)
+  options = options or {}
   local entity = table.deepcopy(data.raw[entity_type][vanilla])
   entity.name = name
   entity.icon = "__Shay__/graphics/icons/" .. name .. ".png"
   entity.minable = {mining_time = 0.5, result = name}
   entity.color = shared.colors[name]
   -- Sampled wagon sheets cover half a turn, just like their vanilla source.
-  entity.pictures = stock.pictures(name, entity.pictures.rotated.layers[1].back_equals_front)
+  if not options.vanilla_pictures then
+    entity.pictures = stock.pictures(name, entity.pictures.rotated.layers[1].back_equals_front)
+  end
   -- Shay locomotives run fuel-free: a void energy source drives them at full power with no inventory.
   if entity_type == "locomotive" then entity.energy_source = {type = "void"} end
 

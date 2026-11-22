@@ -27,8 +27,9 @@ data = {
   raw = {
     ["cargo-wagon"] = {["cargo-wagon"] = source(true)},
     locomotive = {locomotive = source(nil)},
-    ["item-with-entity-data"] = {["cargo-wagon"] = {}, locomotive = {}},
-    recipe = {["cargo-wagon"] = {}, locomotive = {}}
+    ["artillery-wagon"] = {["artillery-wagon"] = source(nil)},
+    ["item-with-entity-data"] = {["cargo-wagon"] = {}, ["artillery-wagon"] = {}, locomotive = {}},
+    recipe = {["cargo-wagon"] = {}, ["artillery-wagon"] = {}, locomotive = {}}
   },
   extend = function() end
 }
@@ -48,4 +49,8 @@ for _, case in ipairs{
   end
   assert(data.raw[case[1]][case[2]].name == nil, "source prototype was mutated")
 end
-print("PASS: all four vehicles preserve source symmetry on body, mask and shadow")
+
+-- The cannon wagon keeps its vanilla artillery wagon graphics untouched.
+local wagon = stock.clone("artillery-wagon", "artillery-wagon", shared.cannon_wagon, {vanilla_pictures = true})
+assert(wagon.pictures.rotated.layers[1].filename == nil, "cannon wagon lost its vanilla pictures")
+print("PASS: all four vehicles preserve source symmetry on body, mask and shadow; cannon wagon keeps vanilla pictures")
