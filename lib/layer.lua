@@ -472,6 +472,24 @@ local on_resupply = function(event)
   player.create_local_flying_text{text = text, create_at_cursor = true}
 end
 
+local on_toggle_manual = function(event)
+  local player = game.get_player(event.player_index)
+  local vehicle = player.vehicle
+  if not (vehicle and vehicle.train) then return end
+  local records = train_records(vehicle.train)
+  if #records == 0 then return end
+  -- A resupply trip runs automatic on a parked schedule, so grabbing the wheel
+  -- mid-trip is a takeover: cancel through the same path check_resupply uses
+  -- for any other manual intervention instead of toggling under the trip.
+  if records[1].resupply then
+    abort_resupply(records[1], {"shay-message.resupply-cancelled"}, false)
+    return
+  end
+  local train = vehicle.train
+  train.manual_mode = not train.manual_mode
+  player.force.print(train.manual_mode and {"shay-message.manual-on"} or {"shay-message.manual-off"})
+end
+
 local resupply_failed =
 {
   [defines.train_state.no_path] = true,
@@ -547,7 +565,8 @@ local layer = {}
 local custom_inputs =
 {
   [shared.custom_input_cruise] = on_toggle_cruise,
-  [shared.custom_input_resupply] = on_resupply
+  [shared.custom_input_resupply] = on_resupply,
+  [shared.custom_input_manual] = on_toggle_manual
 }
 
 local register_inputs = function()

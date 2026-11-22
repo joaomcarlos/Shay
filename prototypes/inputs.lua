@@ -13,5 +13,11 @@ data:extend
     name = shared.custom_input_resupply,
     key_sequence = "CONTROL + SHIFT + G",
     consuming = "game-only"
+  },
+  {
+    type = "custom-input",
+    name = shared.custom_input_manual,
+    key_sequence = "J",
+    consuming = "game-only"
   }
 }
