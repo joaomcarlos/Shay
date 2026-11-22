@@ -87,4 +87,7 @@ shared.custom_input_cruise = "shay-toggle-cruise"
 shared.custom_input_resupply = "shay-resupply"
 shared.custom_input_manual = "shay-toggle-manual"
 
+-- Startup setting naming the item the track layer consumes and places (must place a straight-rail entity)
+shared.rail_item_setting = "shay-rail-item"
+
 return shared
