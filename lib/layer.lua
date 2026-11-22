@@ -22,9 +22,9 @@ local cardinals =
 
 local script_data
 
-local add = function(loco)
+local add = function(loco, player_index)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0}
+  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -322,6 +322,50 @@ local fill_water = function(record, tick, position)
   return false
 end
 
+-- A rail cell that fails placement gets only its exact 2x2 footprint eaten, then one retry —
+-- trackside builds are never touched. Still blocked: perpendicular track or rail
+-- infrastructure the drill won't take.
+local cell_clear = function(record, position, direction)
+  local surface, force = record.entity.surface, record.entity.force
+  if surface.can_place_entity{name = rail_entity, position = position, direction = direction, force = force} then return true end
+  local area = {{position.x - 1, position.y - 1}, {position.x + 1, position.y + 1}}
+  for _, entity in pairs(surface.find_entities_filtered{area = area}) do
+    if grindable(record, entity) then destroy_obstacle(record, entity) end
+  end
+  return surface.can_place_entity{name = rail_entity, position = position, direction = direction, force = force}
+end
+
+-- Lane config is per-player: a riding player's settings drive the consist, and driverless
+-- the player who last toggled cruise does. Nobody ever did: a single track.
+local lane_config = function(record)
+  local player = record.entity.train.passengers[1]
+  if not player and record.player_index then player = game.get_player(record.player_index) end
+  if not player then return shared.layer.lanes, shared.layer.lane_spacing end
+  local spacing = player.mod_settings[shared.setting_lane_spacing].value
+  -- Rail centres tile every 2: odd spacings drop to the next even distance.
+  return player.mod_settings[shared.setting_lanes].value, math.max(2, spacing - spacing % 2)
+end
+
+-- Lateral offset of lane n beside a step of the main lane, in stock-local {side, forward}
+-- space: lane 1 sits `spacing` right of the centreline, lane 2 the same left, and the next
+-- pair a spacing further out. The offset lands on the rail grid — cardinal steps need even
+-- tiles, and diagonal steps (a straight with equal |dx|, |dy|) sit a whole number of (2,2)
+-- cells off, so the perpendicular distance snaps to multiples of 2*sqrt(2). Taking the step
+-- vector keeps this valid once the frontier travels the continuation table: a parallel
+-- straight shares the main lane's direction.
+local lane_offset = function(step_x, step_y, n, spacing)
+  local side = n % 2 == 1 and 1 or -1
+  local lanes_out = math.ceil(n / 2)
+  if step_x ~= 0 and step_y ~= 0 then
+    local grid = math.max(1, math.floor(lanes_out * spacing / (2 * math.sqrt(2)) + 0.5))
+    local offset = 2 * grid * side
+    return {x = -offset * (step_y > 0 and 1 or -1), y = offset * (step_x > 0 and 1 or -1)}
+  end
+  local length = math.sqrt(step_x * step_x + step_y * step_y)
+  local distance = lanes_out * spacing * side
+  return {x = -step_y / length * distance, y = step_x / length * distance}
+end
+
 local lay_rail = function(record, tick)
   local loco = record.entity
   -- About to run out of something it needs: head back to the supply station while there's still some in the cargo.
@@ -346,20 +390,26 @@ local lay_rail = function(record, tick)
   end
   if not best then return end
   local end_position = best.position
+  local lanes, spacing = lane_config(record)
   -- Laying stays ahead of the train at any speed: once its nose overhangs the last rail, the next one can't be placed.
   for _ = 1, max_rails_per_lay do
     if best_reach >= lookahead then return end
     local next_position = {x = end_position.x + vector.x * rail_length, y = end_position.y + vector.y * rail_length}
+    -- The row resolves before a rail leaves the cargo: the main cell always, plus each offset
+    -- lane cell that can take one. A lane still blocked after its footprint is eaten —
+    -- a crossing line or rail infrastructure — is skipped while the main lane continues.
     if not fill_water(record, tick, next_position) then return end
-    if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then
-      -- Only eat what the rail would actually collide with: the exact 2x2 cell, so trackside builds are never touched.
-      local area = {{next_position.x - 1, next_position.y - 1}, {next_position.x + 1, next_position.y + 1}}
-      for _, entity in pairs(surface.find_entities_filtered{area = area}) do
-        if grindable(record, entity) then destroy_obstacle(record, entity) end
-      end
-      if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
+    if not cell_clear(record, next_position, cardinal.direction) then return end
+    local cells = {next_position}
+    for n = 1, lanes - 1 do
+      local offset = lane_offset(vector.x * rail_length, vector.y * rail_length, n, spacing)
+      local lane_position = {x = next_position.x + offset.x, y = next_position.y + offset.y}
+      if not fill_water(record, tick, lane_position) then return end
+      if cell_clear(record, lane_position, cardinal.direction) then cells[#cells + 1] = lane_position end
     end
-    if not take_item(loco.train, rail_item) then
+    -- Rows lay whole or not at all: short stock warns and stops the batch instead of
+    -- leaving a gap in an offset lane that nothing comes back to fill.
+    if count_item(loco.train, rail_item) < #cells then
       if tick >= record.next_warn then
         record.next_warn = tick + warn_interval
         loco.force.print({"shay-message.out-of-rail"})
@@ -367,8 +417,13 @@ local lay_rail = function(record, tick)
       end
       return
     end
+    for index, cell in ipairs(cells) do
+      assert(take_item(loco.train, rail_item))
+      local rail = surface.create_entity{name = rail_entity, position = cell, direction = cardinal.direction, force = loco.force, raise_built = true}
+      -- The main lane stays the frontier marker the resupply trip returns to.
+      if index == 1 then record.last_rail = rail end
+    end
     set_auto_resupply(loco.train)
-    record.last_rail = surface.create_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force, raise_built = true}
     end_position, best_reach = next_position, best_reach + rail_length
   end
 end
@@ -451,6 +506,7 @@ local on_toggle_cruise = function(event)
     end
   end
   if not cruising then set_cruise(records[1], true) end
+  records[1].player_index = event.player_index
   player.create_local_flying_text{text = {cruising and "shay-message.cruise-off" or "shay-message.cruise-on"}, create_at_cursor = true}
 end
 
@@ -500,7 +556,7 @@ end
 
 local on_built = function(event)
   local entity = event.entity
-  if entity.valid and entity.name == shared.layer_locomotive then add(entity) end
+  if entity.valid and entity.name == shared.layer_locomotive then add(entity, event.player_index) end
 end
 
 local on_entity_cloned = function(event)
