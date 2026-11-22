@@ -60,6 +60,15 @@ shared.layer =
   equipment_grid = "shay-equipment-grid",
 }
 
+-- Trackside builds planted beside each freshly laid rail while the cargo holds their
+-- items. offset is {side, forward} in the laid rail's frame — +side is right of
+-- travel — and interval is tiles between placements.
+shared.trackside =
+{
+  {entity = "rail-signal", item = "rail-signal", offset = {1.5, 0}, interval = 16},
+  {entity = "medium-electric-pole", item = "medium-electric-pole", offset = {-1.5, 0}, interval = 8}
+}
+
 -- Resupply: run back to the schedule's first station when a needed item runs low, then return to the last laid rail.
 shared.supply =
 {
@@ -67,6 +76,8 @@ shared.supply =
   rail_full = 200,         -- stocked threshold the wait condition checks for
   fill_low = 20,           -- same thresholds for landfill
   fill_full = 200,
+  trackside_low = 10,      -- and for trackside items (signals, poles)
+  trackside_full = 50,
   wait_ticks = 3600,       -- give up waiting at the station after this
   arrive_wait = 120,       -- ticks to pause at the frontier rail before resuming
 }
