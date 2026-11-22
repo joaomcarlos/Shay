@@ -4,6 +4,7 @@ local frame = require("lib.frame")
 local rail_entity = "straight-rail"
 local rail_item = "rail"
 local fill_item = "landfill"
+local cliff_item = "cliff-explosives"
 local fill_tile = "landfill"
 local rail_length = 2
 local nose_reach = 3
@@ -24,7 +25,7 @@ local script_data
 
 local add = function(loco)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0}
+  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, next_cliff_warn = 0}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -71,9 +72,10 @@ end
 local supplies =
 {
   [rail_item] = {low = shared.supply.rail_low, full = shared.supply.rail_full},
-  [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full}
+  [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full},
+  [cliff_item] = {low = shared.supply.cliff_low, full = shared.supply.cliff_full}
 }
-local supply_items = {rail_item, fill_item}
+local supply_items = {rail_item, fill_item, cliff_item}
 
 local count_item = function(train, name)
   local count = 0
@@ -355,7 +357,22 @@ local lay_rail = function(record, tick)
       -- Only eat what the rail would actually collide with: the exact 2x2 cell, so trackside builds are never touched.
       local area = {{next_position.x - 1, next_position.y - 1}, {next_position.x + 1, next_position.y + 1}}
       for _, entity in pairs(surface.find_entities_filtered{area = area}) do
-        if grindable(record, entity) then destroy_obstacle(record, entity) end
+        -- Cliffs are indestructible so the drill can't eat them: the layer burns
+        -- an explosive per cliff, corrected like a player-thrown charge would.
+        if entity.type == "cliff" then
+          if not take_item(loco.train, cliff_item) then
+            if tick >= record.next_cliff_warn then
+              record.next_cliff_warn = tick + warn_interval
+              loco.force.print({"shay-message.out-of-cliff-explosives"})
+              if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
+            end
+            return
+          end
+          set_auto_resupply(loco.train)
+          entity.destroy{do_cliff_correction = true}
+        elseif grindable(record, entity) then
+          destroy_obstacle(record, entity)
+        end
       end
       if not surface.can_place_entity{name = rail_entity, position = next_position, direction = cardinal.direction, force = loco.force} then return end
     end
