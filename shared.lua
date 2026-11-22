@@ -54,7 +54,7 @@ shared.colors =
 -- Track-layer locomotive tuning
 shared.layer =
 {
-  cruise_speed = 0.15,         -- tiles/tick self-drive throttle (~32 km/h, vanilla max is 1.2)
+  cruise_speed = 0.3,          -- tiles/tick self-drive throttle (~64 km/h, vanilla max is 1.2); the per-player setting overrides
   rail_lay_interval = 5,       -- ticks between rail extension attempts
   grinder_visual_offset = {0, 4.2}, -- enlarged drill centre; its base stays at the nose
   equipment_grid = "shay-equipment-grid",
@@ -90,5 +90,7 @@ shared.custom_input_demolition = "shay-demolition-mode"
 
 -- Startup setting naming the item the track layer consumes and places (must place a straight-rail entity)
 shared.rail_item_setting = "shay-rail-item"
+
+shared.setting_cruise_speed = "shay-cruise-speed"
 
 return shared

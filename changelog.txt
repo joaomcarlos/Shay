@@ -3,3 +3,4 @@ Version: 0.1.0
 Date: 2026-11-10
   Changes:
     - Initial development build.
+    - Cruise speed is a per-player runtime setting; the default throttle is about 64 km/h, up from 32.

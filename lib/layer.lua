@@ -34,13 +34,9 @@ end
 -- the grinder raises on_robot_pre_mined before eating one. Lives in storage.layer too.
 local triggers = {}
 
-local add = function(loco)
+local add = function(loco, player_index)
   if script_data.locos[loco.unit_number] then return end
-<<<<<<< HEAD
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, heading = heading(loco)}
-=======
-  script_data.locos[loco.unit_number] = {entity = loco, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, relaid = {}}
->>>>>>> origin/feature/demolition-modes
+  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, relaid = {}, heading = heading(loco)}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -59,6 +55,15 @@ local overridden = function(train)
     end
   end
   return false
+end
+
+-- Cruise speed is per-player: a riding player's setting drives the consist, and driverless
+-- the player who last toggled cruise does. Nobody ever did: the shared default.
+local cruise_speed = function(record)
+  local player = record.entity.train.passengers[1]
+  if not player and record.player_index then player = game.get_player(record.player_index) end
+  if not player then return shared.layer.cruise_speed end
+  return player.mod_settings[shared.setting_cruise_speed].value
 end
 
 local take_item = function(train, name)
@@ -560,7 +565,7 @@ local update = function(record, tick)
   -- Records from before the cache existed pick their sign up on the first tick.
   local sign = record.heading
   if not sign then sign = heading(loco); record.heading = sign end
-  if record.cruise and not overridden(train) then train.speed = shared.layer.cruise_speed * sign end
+  if record.cruise and not overridden(train) then train.speed = cruise_speed(record) * sign end
   local pushing = pushing_forward(record, sign)
   show_grinder(record, pushing)
   if not pushing then return end
@@ -602,6 +607,7 @@ local on_toggle_cruise = function(event)
     end
   end
   if not cruising then set_cruise(records[1], true) end
+  records[1].player_index = event.player_index
   player.create_local_flying_text{text = {cruising and "shay-message.cruise-off" or "shay-message.cruise-on"}, create_at_cursor = true}
 end
 
@@ -691,7 +697,7 @@ end
 
 local on_built = function(event)
   local entity = event.entity
-  if entity.valid and entity.name == shared.layer_locomotive then add(entity) end
+  if entity.valid and entity.name == shared.layer_locomotive then add(entity, event.player_index) end
 end
 
 local on_entity_cloned = function(event)
@@ -726,11 +732,8 @@ local custom_inputs =
 {
   [shared.custom_input_cruise] = on_toggle_cruise,
   [shared.custom_input_resupply] = on_resupply,
-<<<<<<< HEAD
-  [shared.custom_input_manual] = on_toggle_manual
-=======
+  [shared.custom_input_manual] = on_toggle_manual,
   [shared.custom_input_demolition] = on_demolition_mode
->>>>>>> origin/feature/demolition-modes
 }
 
 local register_inputs = function()
