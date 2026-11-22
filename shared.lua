@@ -84,5 +84,6 @@ shared.ramp =
 
 shared.custom_input_cruise = "shay-toggle-cruise"
 shared.custom_input_resupply = "shay-resupply"
+shared.custom_input_demolition = "shay-demolition-mode"
 
 return shared
