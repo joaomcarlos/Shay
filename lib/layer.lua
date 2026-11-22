@@ -1,8 +1,7 @@
 local shared = require("shared")
 local frame = require("lib.frame")
 
-local rail_entity = "straight-rail"
-local rail_item = "rail"
+local rail_item, rail_entity, rail_type
 local fill_item = "landfill"
 local fill_tile = "landfill"
 local rail_length = 2
@@ -21,6 +20,10 @@ local cardinals =
 }
 
 local script_data
+
+-- Entity names other mods asked about via remote.call("shay", "add_entity_to_trigger"):
+-- the grinder raises on_robot_pre_mined before eating one. Lives in storage.layer too.
+local triggers = {}
 
 local add = function(loco)
   if script_data.locos[loco.unit_number] then return end
@@ -68,12 +71,26 @@ local store = function(train, name, count)
 end
 
 -- Consumables the consist needs: low trips the auto-resupply, full is what the station waits for.
-local supplies =
-{
-  [rail_item] = {low = shared.supply.rail_low, full = shared.supply.rail_full},
-  [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full}
-}
-local supply_items = {rail_item, fill_item}
+-- Built by resolve_rail once the configured rail item is known.
+local supplies, supply_items
+
+-- The rail item comes from the shay-rail-item startup setting; resolve it (and the
+-- straight-rail entity it places) once per load so everything below stays item-agnostic.
+local resolve_rail = function()
+  local name = settings.startup[shared.rail_item_setting].value
+  local item = prototypes.item[name]
+  local result = item and item.place_result
+  if not (result and result.type == "straight-rail") then
+    error("Shay: " .. shared.rail_item_setting .. " '" .. name .. "' is not an item that places a straight rail")
+  end
+  rail_item, rail_entity, rail_type = name, result.name, result.type
+  supplies =
+  {
+    [rail_item] = {low = shared.supply.rail_low, full = shared.supply.rail_full},
+    [fill_item] = {low = shared.supply.fill_low, full = shared.supply.fill_full}
+  }
+  supply_items = {rail_item, fill_item}
+end
 
 local count_item = function(train, name)
   local count = 0
@@ -292,6 +309,7 @@ local destroy_obstacle = function(record, entity)
   for _, product in pairs(entity.prototype.mineable_properties.products or {}) do
     if product.type == "item" then store(loco.train, product.name, product.amount or product.amount_max) end
   end
+  if triggers[entity.name] then script.raise_event(defines.events.on_robot_pre_mined, {entity = entity}) end
   entity.die()
   -- die() is a no-op on things without health (cliffs, resources): pull them out of the ground instead.
   if entity.valid then entity.destroy() end
@@ -332,7 +350,7 @@ local lay_rail = function(record, tick)
   local best, best_reach
   for _, rail in pairs(surface.find_entities_filtered
   {
-    type = rail_entity,
+    type = rail_type,
     position = frame.place(loco, {0, nose_reach}),
     radius = rail_search_radius
   }) do
@@ -545,15 +563,42 @@ local register_inputs = function()
 end
 
 layer.on_init = function()
-  storage.layer = {locos = {}, registrations = {}}
+  storage.layer = {locos = {}, registrations = {}, triggers = triggers}
   script_data = storage.layer
+  resolve_rail()
   register_inputs()
 end
 
 layer.on_load = function()
   script_data = storage.layer
+  -- Registrations made before this on_load and ones recovered from storage merge here.
+  script_data.triggers = script_data.triggers or {}
+  for name in pairs(triggers) do script_data.triggers[name] = true end
+  triggers = script_data.triggers
+  resolve_rail()
   register_inputs()
 end
+
+-- FARL parity: other mods register entity names so the grinder raises
+-- on_robot_pre_mined before destroying them. control.lua exposes this as remote "shay".
+layer.remote =
+{
+  add_entity_to_trigger = function(name)
+    if not prototypes.entity[name] then return end
+    triggers[name] = true
+    return true
+  end,
+
+  remove_entity_from_trigger = function(name)
+    if not triggers[name] then return end
+    triggers[name] = nil
+    return true
+  end,
+
+  get_trigger_list = function()
+    return triggers
+  end
+}
 
 layer.events =
 {

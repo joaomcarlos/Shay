@@ -17,6 +17,8 @@ script = {
   on_event = function() end,
   register_on_object_destroyed = function() return 1 end
 }
+settings = {startup = {["shay-rail-item"] = {value = "rail"}}}
+prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
 
 local drawn, draws = nil, 0
 rendering = {draw_animation = function(options)
