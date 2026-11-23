@@ -35,7 +35,10 @@ local shared = require("shared")
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
 prototypes = {
   item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
-  entity = {}
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
 }
 
 -- Data-stage validation: the item must exist and place a straight-rail prototype.
@@ -76,7 +79,7 @@ local loco = {
   orientation = 0, position = {x = 0, y = 0}, surface = {},
   force = {print = function() end}
 }
-local counts = {["hl-rail"] = 500, landfill = 500, ["cliff-explosives"] = 500, concrete = 500}
+local counts = {["hl-rail"] = 500, landfill = 500, ["cliff-explosives"] = 500, concrete = 500, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}
 local inventory = {
   remove = function(t) if (counts[t.name] or 0) >= t.count then counts[t.name] = counts[t.name] - t.count return t.count end return 0 end,
   insert = function(t) counts[t.name] = (counts[t.name] or 0) + t.count return t.count end,

@@ -18,7 +18,13 @@ script = {
   register_on_object_destroyed = function() return 1 end
 }
 settings = {startup = {["shay-rail-item"] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 
 local drawn, draws = nil, 0
 rendering = {draw_animation = function(options)

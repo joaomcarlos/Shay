@@ -27,7 +27,13 @@ end}
 
 local shared = require("shared")
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 local layer = require("lib.layer")
 
 -- Northbound loco at the origin: the frontier rail sits at {0, -8}, so the next
@@ -90,7 +96,7 @@ local function run(world, ticks)
 end
 
 -- Stocked: the cliff goes down like a player charge took it out, and the rail lands.
-local stocked = make_world({rail = 20, landfill = 20, ["cliff-explosives"] = 10, concrete = 50}, true)
+local stocked = make_world({rail = 20, landfill = 20, ["cliff-explosives"] = 10, concrete = 50, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, true)
 run(stocked, {5})
 assert(stocked.items["cliff-explosives"] == 9, "laying through a cliff spends one charge")
 assert(not stocked.cliff.valid, "the cliff was destroyed")

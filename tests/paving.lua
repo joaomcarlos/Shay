@@ -32,7 +32,13 @@ rendering =
 
 local shared = require("shared")
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 local layer = require("lib.layer")
 
 local function key(x, y) return x .. "," .. y end
@@ -94,7 +100,7 @@ local function new_world(setup)
   end
   surface.create_entity = function(options)
     local entity = {valid = true, type = "straight-rail", name = options.name, position = options.position, direction = options.direction}
-    created[#created + 1] = entity
+    if options.name == "straight-rail" then created[#created + 1] = entity end
     entities[#entities + 1] = entity
     return entity
   end
@@ -149,7 +155,7 @@ local function seeded_rail()
   return {{type = "straight-rail", name = "straight-rail", position = {x = 0, y = -6}, direction = 0}}
 end
 
-local world = new_world{cargo = {rail = 100, landfill = 100, concrete = 100}, entities = seeded_rail()}
+local world = new_world{cargo = {rail = 100, landfill = 100, concrete = 100, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, entities = seeded_rail()}
 layer.events[events.on_tick]{tick = 5}
 assert(#world.created == 2, "two rails laid ahead of the seeded one")
 assert(world.counts.rail == 98, "one rail item per laid rail")
@@ -168,7 +174,7 @@ end
 assert(#world.prints == 0, "stocked cargo stays silent")
 print("PASS: each laid rail paves its footprint plus margin, one item per tile")
 
-world = new_world{cargo = {rail = 100, landfill = 100, concrete = 5}, entities = seeded_rail()}
+world = new_world{cargo = {rail = 100, landfill = 100, concrete = 5, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, entities = seeded_rail()}
 layer.events[events.on_tick]{tick = 5}
 assert(#world.created == 2, "empty concrete never blocks laying")
 assert(world.counts.concrete == 0, "paving drains the last items")
@@ -187,7 +193,7 @@ print("PASS: out of concrete lays unpaved and warns once per interval")
 
 world = new_world
 {
-  cargo = {rail = 100, landfill = 100, concrete = 100},
+  cargo = {rail = 100, landfill = 100, concrete = 100, ["rail-signal"] = 50, ["medium-electric-pole"] = 50},
   entities = seeded_rail(),
   tiles =
   {

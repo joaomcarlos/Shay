@@ -26,7 +26,13 @@ require("prototypes.inputs")
 assert(inputs[shared.custom_input_manual].key_sequence == "J", "manual toggle rides the J key")
 
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 local layer = require("lib.layer")
 layer.on_init()
 assert(handlers[shared.custom_input_manual], "the toggle handler must register on init")

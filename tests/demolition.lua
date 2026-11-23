@@ -31,7 +31,13 @@ game = {get_player = function() return player end}
 
 local shared = require("shared")
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 local layer = require("lib.layer")
 
 local world, next_unit, prints, texts, surface
@@ -197,6 +203,7 @@ local tick = function() layer.events[events.on_tick]{tick = 5} end
 -- Bulldozer: the consist tears up its own line behind it and stores the take.
 local s = setup()
 s.items.rail, s.items.landfill, s.items["cliff-explosives"], s.items.concrete = 50, 500, 50, 50
+s.items["rail-signal"], s.items["medium-electric-pole"] = 50, 50
 rail(s, 0, 0)      -- under the loco
 rail(s, 0, 10.5)   -- straddles the wagon's tail: inside the protection radius and the sweep
 local eaten = {
@@ -232,13 +239,14 @@ for _, e in ipairs(eaten) do assert(not e.valid, "bulldozer removes " .. e.type 
 assert(not off_rail.valid and not stopped_rail.valid)
 for _, e in ipairs(kept) do assert(e.valid, "bulldozer must spare " .. e.type) end
 assert(s.items.rail == 54, "four torn-up rails came aboard")
-assert(s.items["rail-signal"] == 1 and s.items["electric-pole"] == 1)
+assert(s.items["rail-signal"] == 51 and s.items["electric-pole"] == 1)
 assert(s.items.lamp == 1 and s.items.wall == 1)
 assert(#prints == 0)
 
 -- Full cargo: what cannot be stored is left standing, and the warning is throttled.
 s = setup({rail = 50})
 s.items.rail, s.items.landfill, s.items["cliff-explosives"], s.items.concrete = 50, 500, 50, 50
+s.items["rail-signal"], s.items["medium-electric-pole"] = 50, 50
 rail(s, 0, 0)
 local jammed = rail(s, 0, 12)
 local fits = furniture(s, "electric-pole", 3, 14)
@@ -253,6 +261,7 @@ assert(#prints == 1, "the full-cargo warning waits out warn_interval before repe
 -- Maintenance: the old line ahead is pulled up and relaid on the same heading.
 s = setup()
 s.items.rail, s.items.landfill, s.items["cliff-explosives"], s.items.concrete = 50, 500, 50, 500
+s.items["rail-signal"], s.items["medium-electric-pole"] = 50, 500
 rail(s, 0, 0)
 local old = {
   rail(s, 0, -5), rail(s, 0, -7), rail(s, 0, -9),

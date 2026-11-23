@@ -39,7 +39,7 @@ local triggers = {}
 
 local add = function(loco, player_index)
   if script_data.locos[loco.unit_number] then return end
-  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, next_cliff_warn = 0, next_pave_warn = 0, relaid = {}, heading = heading(loco)}
+  script_data.locos[loco.unit_number] = {entity = loco, player_index = player_index, cruise = false, next_warn = 0, next_fill_warn = 0, next_demolish_warn = 0, next_cliff_warn = 0, next_pave_warn = 0, next_trackside_warn = 0, relaid = {}, trackside = {}, heading = heading(loco)}
   script_data.registrations[script.register_on_object_destroyed(loco)] = loco.unit_number
 end
 
@@ -105,6 +105,10 @@ local resolve_rail = function()
     [pave_item] = {low = shared.supply.pave_low, full = shared.supply.pave_full}
   }
   supply_items = {rail_item, fill_item, cliff_item, pave_item}
+  for _, spec in pairs(shared.trackside) do
+    supplies[spec.item] = {low = shared.supply.trackside_low, full = shared.supply.trackside_full}
+    supply_items[#supply_items + 1] = spec.item
+  end
 end
 
 local count_item = function(train, name)
@@ -571,6 +575,64 @@ local lane_offset = function(step_x, step_y, n, spacing)
   return {x = -step_y / length * distance, y = step_x / length * distance}
 end
 
+-- Trackside cells get the same contract as the rail path — eat only what the new
+-- entity's own cell blocks — but the drill is pickier here: nature and natives are
+-- fair game, anything owned by a player force (ours or an ally's) is a skip, never
+-- a demolition.
+local clear_trackside_cell = function(record, spec, position)
+  local loco = record.entity
+  local box = prototypes.entity[spec.entity].collision_box
+  local area =
+  {
+    {math.floor(position.x + box.left_top.x), math.floor(position.y + box.left_top.y)},
+    {math.ceil(position.x + box.right_bottom.x), math.ceil(position.y + box.right_bottom.y)}
+  }
+  for _, entity in pairs(loco.surface.find_entities_filtered{area = area}) do
+    local force = entity.force.name
+    if (force == "neutral" or force == "enemy") and grindable(record, entity) then destroy_obstacle(record, entity) end
+  end
+end
+
+local place_trackside = function(record, tick, spec, position, cardinal)
+  local loco = record.entity
+  local surface = loco.surface
+  -- A signal's direction is the travel it governs reversed: right-side mounts look back at
+  -- oncoming trains (+8), left-side mounts face along it (+0). Poles ignore direction.
+  local placement = {name = spec.entity, position = position, direction = (cardinal.direction + (spec.offset[1] >= 0 and 8 or 0)) % 16, force = loco.force}
+  if not surface.can_place_entity(placement) then
+    clear_trackside_cell(record, spec, position)
+    if not surface.can_place_entity(placement) then return false end
+  end
+  if not take_item(loco.train, spec.item) then
+    if tick >= record.next_trackside_warn then
+      record.next_trackside_warn = tick + warn_interval
+      loco.force.print({"shay-message.out-of-trackside", {"item-name." .. spec.item}})
+      if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
+    end
+    return false
+  end
+  set_auto_resupply(loco.train)
+  placement.raise_built = true
+  surface.create_entity(placement)
+  return true
+end
+
+-- Each spec keeps a countdown in tiles; a failed spot retries at the next rail so
+-- pole chains and signal spacing survive whatever briefly blocked them.
+local lay_trackside = function(record, tick, position, cardinal)
+  local dues = record.trackside
+  if not dues then dues = {}; record.trackside = dues end
+  local orientation = cardinal.direction / 16
+  for index, spec in pairs(shared.trackside) do
+    local due = (dues[index] or 0) - rail_length
+    if due <= 0 then
+      local rotated = frame.rotate(orientation, spec.offset)
+      if place_trackside(record, tick, spec, {x = position.x + rotated.x, y = position.y + rotated.y}, cardinal) then due = spec.interval end
+    end
+    dues[index] = due
+  end
+end
+
 local lay_rail = function(record, tick)
   local loco = record.entity
   -- About to run out of something it needs: head back to the supply station while there's still some in the cargo.
@@ -625,8 +687,13 @@ local lay_rail = function(record, tick)
     for index, cell in ipairs(cells) do
       assert(take_item(loco.train, rail_item))
       local rail = surface.create_entity{name = rail_entity, position = cell, direction = cardinal.direction, force = loco.force, raise_built = true}
-      -- The main lane stays the frontier marker the resupply trip returns to.
-      if index == 1 then record.last_rail = rail end
+      -- The main lane stays the frontier marker the resupply trip returns to,
+      -- and the trackside countdown only counts along it — side lanes never
+      -- interleave their own signals and poles.
+      if index == 1 then
+        record.last_rail = rail
+        lay_trackside(record, tick, cell, cardinal)
+      end
       if record.mode == "maintenance" then record.relaid[rail.unit_number] = rail end
       pave(record, tick, cell)
     end

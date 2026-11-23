@@ -33,7 +33,13 @@ game = {get_player = function(index) return players[index] end}
 local shared = require("shared")
 
 settings = {startup = {[shared.rail_item_setting] = {value = "rail"}}}
-prototypes = {item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}}}
+prototypes = {
+  item = {rail = {place_result = {name = "straight-rail", type = "straight-rail"}}},
+  entity = {
+    ["rail-signal"] = {collision_box = {left_top = {x = -0.2, y = -0.2}, right_bottom = {x = 0.2, y = 0.2}}},
+    ["medium-electric-pole"] = {collision_box = {left_top = {x = -0.15, y = -0.15}, right_bottom = {x = 0.15, y = 0.15}}}
+  }
+}
 
 local prototypes = {}
 data = {extend = function(_, entries) for _, entry in ipairs(entries) do prototypes[entry.name] = entry end end}
@@ -95,7 +101,7 @@ local function make_world()
     entity.die = function() entity.valid = false end
     entity.destroy = function() entity.valid = false end
     world.entities[#world.entities + 1] = entity
-    world.placed[#world.placed + 1] = options
+    if options.name == "straight-rail" then world.placed[#world.placed + 1] = options end
     return entity
   end
   return surface, world
@@ -157,7 +163,7 @@ local function scenario(options)
   local surface, world = make_world()
   world.entities[#world.entities + 1] = planted_rail(0, -4, 0)
   for _, entity in ipairs(options.entities or {}) do world.entities[#world.entities + 1] = entity end
-  local items = options.items or {rail = 40, landfill = 40, ["cliff-explosives"] = 40, concrete = 300}
+  local items = options.items or {rail = 40, landfill = 40, ["cliff-explosives"] = 40, concrete = 300, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}
   local printed = {}
   local loco = {
     valid = true, name = shared.layer_locomotive, unit_number = 1, orientation = 0,
@@ -226,7 +232,7 @@ assert(cross_a.valid and cross_b.valid, "rail infrastructure is never eaten")
 assert(crossed.items.rail == 33)
 
 -- Out of rail mid-batch: the second row needs 3 but only 1 remains, so nothing of it lays.
-local dry = scenario{passenger = rider(3, 4), items = {rail = 4, landfill = 40, ["cliff-explosives"] = 40, concrete = 300}, auto_resupply_off = true}
+local dry = scenario{passenger = rider(3, 4), items = {rail = 4, landfill = 40, ["cliff-explosives"] = 40, concrete = 300, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, auto_resupply_off = true}
 assert(#dry.world.placed == 3, "a short batch stops whole rather than half-laying a row")
 assert(dry.items.rail == 1)
 assert(dry.printed[1][1] == "shay-message.out-of-rail", "the batch warns on the way out")
