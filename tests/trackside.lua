@@ -62,10 +62,14 @@ surface.get_tile = function() return {name = "grass-1"} end
 surface.find_tiles_filtered = function() return {} end
 surface.play_sound = function() end
 surface.find_entities_filtered = function(query)
-  if query.type == "straight-rail" then
-    local rails = {{valid = true, name = "straight-rail", position = {x = 0, y = -3}, direction = 0}}
+  local rail_match = query.type == "straight-rail"
+  if type(query.type) == "table" then
+    for _, entity_type in pairs(query.type) do if entity_type == "straight-rail" then rail_match = true end end
+  end
+  if rail_match then
+    local rails = {{valid = true, type = "straight-rail", name = "straight-rail", position = {x = 0, y = -3}, direction = 0}}
     for _, entry in pairs(created) do
-      if entry.name == "straight-rail" then rails[#rails + 1] = {valid = true, name = "straight-rail", position = entry.position, direction = entry.direction} end
+      if entry.name == "straight-rail" then rails[#rails + 1] = {valid = true, type = "straight-rail", name = "straight-rail", position = entry.position, direction = entry.direction} end
     end
     return rails
   end
@@ -85,7 +89,7 @@ surface.can_place_entity = function(options)
 end
 surface.create_entity = function(options)
   created[#created + 1] = options
-  return {valid = true, name = options.name, position = options.position}
+  return {valid = true, type = options.name, name = options.name, position = options.position, direction = options.direction}
 end
 
 local loco = {valid = true, name = shared.layer_locomotive, unit_number = 1, orientation = 0, position = {x = 0, y = 0}, surface = surface, force = force}
@@ -149,7 +153,7 @@ end
 stock = {rail = 200, landfill = 50, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}
 reset()
 run(6)
-assert(#placements("straight-rail") == 18, "six ticks lay eighteen rails")
+assert(#placements("straight-rail") == 17, "six ticks lay seventeen rails")
 local signals, poles = placements("rail-signal"), placements("medium-electric-pole")
 assert(#signals == 3, "a signal every 16 tiles")
 assert(#poles == 5, "a pole every 8 tiles")
@@ -160,14 +164,14 @@ for _, spot in ipairs{{-5}, {-21}, {-37}} do
   assert(signal.force == force and signal.raise_built)
 end
 for _, y in ipairs{-5, -13, -21, -29, -37} do assert(at(poles, -1.5, y), "pole missing at -1.5," .. y) end
-assert(stock["rail"] == 182 and stock["rail-signal"] == 47 and stock["medium-electric-pole"] == 45, "cargo paid for every placement")
+assert(stock["rail"] == 183 and stock["rail-signal"] == 47 and stock["medium-electric-pole"] == 45, "cargo paid for every placement")
 assert(not warned("shay-message.out-of-trackside"), "no shortage warnings while stocked")
 
 -- Out of signals: warn once per interval, keep laying rails and poles, resume on restock.
 stock["rail-signal"] = 0
 reset()
 run(2)
-assert(#placements("straight-rail") == 6, "rails still lay without signals")
+assert(#placements("straight-rail") == 5, "rails still lay without signals")
 assert(#placements("rail-signal") == 0, "no signal without stock")
 assert(#placements("medium-electric-pole") == 2, "poles unaffected by missing signals")
 assert(warned("shay-message.out-of-trackside")[2][1] == "item-name.rail-signal", "warning names the missing item")

@@ -79,7 +79,13 @@ local function new_world(setup)
   surface.find_entities_filtered = function(options)
     local found = {}
     for _, entity in ipairs(entities) do
-      local match = not options.type or entity.type == options.type
+      local match = true
+      if options.type then
+        match = false
+        for _, entity_type in ipairs(type(options.type) == "table" and options.type or {options.type}) do
+          if entity.type == entity_type then match = true break end
+        end
+      end
       if match and options.position then
         local dx, dy = entity.position.x - options.position.x, entity.position.y - options.position.y
         match = dx * dx + dy * dy <= options.radius * options.radius
@@ -149,10 +155,10 @@ local function new_world(setup)
   return {loco = loco, counts = counts, grid = grid, created = created, set_log = set_log, prints = prints}
 end
 
--- The loco faces north, so new rail grows to -y: a seeded rail at -6 and lookahead 9 lay two
--- more per lay tick, at -8 and -10, each paving a 4x4 square around its 2x2 footprint.
+-- The loco faces north, so new rail grows to -y: a seeded rail at -4 and lookahead 9 lay two
+-- more per lay tick, at -6 and -8, each paving a 4x4 square around its 2x2 footprint.
 local function seeded_rail()
-  return {{type = "straight-rail", name = "straight-rail", position = {x = 0, y = -6}, direction = 0}}
+  return {{type = "straight-rail", name = "straight-rail", position = {x = 0, y = -4}, direction = 0}}
 end
 
 local world = new_world{cargo = {rail = 100, landfill = 100, concrete = 100, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, entities = seeded_rail()}
@@ -161,7 +167,7 @@ assert(#world.created == 2, "two rails laid ahead of the seeded one")
 assert(world.counts.rail == 98, "one rail item per laid rail")
 local paved = 0
 for x = -2, 1 do
-  for y = -12, -7 do
+  for y = -10, -5 do
     assert(world.grid[key(x, y)] == "concrete", "footprint plus pave_width margin all paved")
     paved = paved + 1
   end
@@ -197,20 +203,20 @@ world = new_world
   entities = seeded_rail(),
   tiles =
   {
-    {-2, -8, "refined-concrete"}, {-1, -8, "refined-concrete"}, {0, -8, "refined-concrete"}, {1, -8, "refined-concrete"},
-    {-2, -7, "hazard-concrete-left"}, {-1, -7, "hazard-concrete-left"}, {0, -7, "hazard-concrete-left"}, {1, -7, "hazard-concrete-left"}
+    {-2, -6, "refined-concrete"}, {-1, -6, "refined-concrete"}, {0, -6, "refined-concrete"}, {1, -6, "refined-concrete"},
+    {-2, -5, "hazard-concrete-left"}, {-1, -5, "hazard-concrete-left"}, {0, -5, "hazard-concrete-left"}, {1, -5, "hazard-concrete-left"}
   },
-  water = {{-2, -11}, {-1, -11}, {0, -11}, {1, -11}}
+  water = {{-2, -9}, {-1, -9}, {0, -9}, {1, -9}}
 }
 layer.events[events.on_tick]{tick = 5}
 local expected =
 {
-  ["-2,-11"] = "water", ["1,-11"] = "water",
-  ["-2,-8"] = "refined-concrete", ["-1,-8"] = "refined-concrete", ["0,-8"] = "refined-concrete", ["1,-8"] = "refined-concrete",
-  ["-2,-7"] = "hazard-concrete-left", ["-1,-7"] = "hazard-concrete-left", ["0,-7"] = "hazard-concrete-left", ["1,-7"] = "hazard-concrete-left"
+  ["-2,-9"] = "water", ["1,-9"] = "water",
+  ["-2,-6"] = "refined-concrete", ["-1,-6"] = "refined-concrete", ["0,-6"] = "refined-concrete", ["1,-6"] = "refined-concrete",
+  ["-2,-5"] = "hazard-concrete-left", ["-1,-5"] = "hazard-concrete-left", ["0,-5"] = "hazard-concrete-left", ["1,-5"] = "hazard-concrete-left"
 }
 for x = -2, 1 do
-  for y = -12, -7 do
+  for y = -10, -5 do
     local k = key(x, y)
     local want = expected[k] or "concrete"
     assert(world.grid[k] == want, k .. " is " .. tostring(world.grid[k]) .. ", want " .. want)

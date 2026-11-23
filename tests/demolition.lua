@@ -283,8 +283,8 @@ assert(s.record.relaid[fresh[3].unit_number] == fresh[3], "relaid rails are mark
 assert(s.items.rail == 50, "three old rails came in, three fresh rails went out")
 tick()
 assert(fresh[1].valid and fresh[2].valid and fresh[3].valid, "relaid rails are not torn up again")
-assert(rail_at(0, -8) and rail_at(0, -10), "laying keeps extending the fresh line")
-assert(s.items.rail == 48)
+assert(rail_at(0, -8), "laying keeps extending the fresh line")
+assert(s.items.rail == 49)
 assert(survivors[1].valid, "the old line outside the window is left alone")
 
 -- CTRL+ALT+G cycles lay -> bulldozer -> maintenance -> off -> lay, printing each mode.

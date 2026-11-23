@@ -93,7 +93,7 @@ loco.train = {
 layer.events[events.script_raised_built]{entity = loco}
 
 local surface = loco.surface
-local frontier = {position = {x = 0, y = -4}, direction = 0, valid = true}
+local frontier = {type = "straight-rail", position = {x = 0, y = -4}, direction = 0, valid = true}
 local cell, placed, checked = {}, nil, {}
 surface.get_tile = function() return {name = "grass-1"} end
 surface.find_entities_filtered = function(args)
@@ -111,8 +111,8 @@ surface.can_place_entity = function(args)
 end
 surface.play_sound = function() end
 surface.create_entity = function(args)
-  placed = args
-  return {position = args.position, valid = true}
+  if args.name == "hl-straight-rail" or args.name == "straight-rail" then placed = args end
+  return {position = args.position, direction = args.direction, valid = true, type = "straight-rail"}
 end
 local function new_rock()
   local rock = {
@@ -130,7 +130,7 @@ cell = {rock}
 layer.events[events.on_tick]{tick = 5}
 assert(placed and placed.name == "hl-straight-rail", "must place the modded rail's entity, not straight-rail")
 assert(checked[1] == "hl-straight-rail", "collision checks must use the modded rail entity")
-assert(counts["hl-rail"] == 497 and not counts.rail, "the modded rail item is what the consist consumes")
+assert(counts["hl-rail"] == 498 and not counts.rail, "the modded rail item is what the consist consumes")
 assert(rock.died and #raised == 0, "unregistered entities are ground without a pre-mined event")
 
 -- remote.call("shay", "add_entity_to_trigger", name) marks names whose destruction raises on_robot_pre_mined.
@@ -140,6 +140,8 @@ assert(layer.remote.add_entity_to_trigger("big-rock") == true)
 assert(layer.remote.get_trigger_list()["big-rock"], "list must report the registration")
 place_checks = 0
 clear(raised)
+-- Reseed the frontier so the fresh rock stands in the next cleared cell again.
+storage.layer.locos[1].last_rail, storage.layer.locos[1].travel_dir = nil, nil
 rock = new_rock()
 cell = {rock}
 layer.events[events.on_tick]{tick = 10}

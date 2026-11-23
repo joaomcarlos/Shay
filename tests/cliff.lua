@@ -36,11 +36,11 @@ prototypes = {
 }
 local layer = require("lib.layer")
 
--- Northbound loco at the origin: the frontier rail sits at {0, -8}, so the next
--- 2x2 cell lands on {0, -10} where the cliff (and a grindable tree) stands.
+-- Northbound loco at the origin: the frontier rail sits at {0, -6}, so the next
+-- 2x2 cell lands on {0, -8} where the cliff (and a grindable tree) stands.
 local function make_world(items, with_tree)
   local world = {items = items, messages = {}, created = {}, schedule_reads = 0}
-  local cliff = {valid = true, type = "cliff", name = "cliff", destructible = false, position = {x = 0, y = -10}}
+  local cliff = {valid = true, type = "cliff", name = "cliff", destructible = false, position = {x = 0, y = -8}}
   cliff.destroy = function(options)
     cliff.destroy_options = options
     cliff.valid = false
@@ -74,7 +74,7 @@ local function make_world(items, with_tree)
     find_tiles_filtered = function() return {} end,
     find_entities_filtered = function(options)
       if options.area then return footprint end
-      return {{valid = true, type = "straight-rail", direction = 0, position = {x = 0, y = -8}}}
+      return {{valid = true, type = "straight-rail", direction = 0, position = {x = 0, y = -6}}}
     end,
     can_place_entity = function() return not cliff.valid end,
     create_entity = function(options)
@@ -103,7 +103,7 @@ assert(not stocked.cliff.valid, "the cliff was destroyed")
 assert(stocked.cliff.destroy_options.do_cliff_correction == true, "neighbouring cliffs get corrected")
 assert(not stocked.tree.valid, "grindables in the footprint still get eaten")
 assert(stocked.created[1] and stocked.created[1].name == "straight-rail", "the rail was laid")
-assert(stocked.created[1].position.y == -10, "the rail landed on the cliff's cell")
+assert(stocked.created[1].position.y == -8, "the rail landed on the cliff's cell")
 assert(stocked.items.rail == 19, "the rail came out of the consist's cargo")
 assert(stocked.schedule_reads == 0, "nothing was low, so no resupply was attempted")
 assert(#stocked.messages == 0, "stocked explosives warn nobody")

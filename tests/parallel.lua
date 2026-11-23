@@ -11,7 +11,8 @@ defines = {
   direction = {north = 0, east = 4, south = 8, west = 12},
   train_state = {no_path = 1, destination_full = 2},
   inventory = {cargo_wagon = 1},
-  riding = {acceleration = {nothing = 0, accelerating = 1, braking = 2, reversing = 3}},
+  riding = {acceleration = {nothing = 0, accelerating = 1, braking = 2, reversing = 3},
+    direction = {left = 0, straight = 1, right = 2}},
   events = events
 }
 storage = {}
@@ -147,7 +148,7 @@ end
 
 local function rider(lanes, spacing)
   return {
-    riding_state = {acceleration = defines.riding.acceleration.nothing},
+    riding_state = {acceleration = defines.riding.acceleration.nothing, direction = defines.riding.direction.straight},
     mod_settings = {
       [shared.setting_lanes] = {value = lanes},
       [shared.setting_lane_spacing] = {value = spacing}
@@ -195,17 +196,17 @@ end
 
 -- Default: a driverless, untouched consist keeps the single main line.
 local single = scenario()
-assert(#single.world.placed == 3, "one lane lays the same three rails as before")
+assert(#single.world.placed == 2, "one lane lays two rails per tick under the next-piece lookahead")
 for _, options in ipairs(single.world.placed) do
   assert(options.position.x == 0 and options.direction == 0 and options.raise_built)
 end
-assert(single.items.rail == 37, "each laid rail consumes one item")
+assert(single.items.rail == 38, "each laid rail consumes one item")
 
 -- Three lanes at spacing 4: rows lay main, then right (+x), then left (-x).
 local triple = scenario{passenger = rider(3, 4)}
-assert(#triple.world.placed == 9, "three lanes lay a full row per step")
+assert(#triple.world.placed == 6, "three lanes lay a full row per step")
 local cells = cell_set(triple.world)
-for _, y in ipairs{-6, -8, -10} do
+for _, y in ipairs{-6, -8} do
   for _, x in ipairs{-4, 0, 4} do
     local options = cells[x .. "," .. y]
     assert(options, "missing rail at " .. x .. "," .. y)
@@ -214,22 +215,22 @@ for _, y in ipairs{-6, -8, -10} do
 end
 assert(triple.world.placed[1].position.x == 0 and triple.world.placed[2].position.x == 4 and triple.world.placed[3].position.x == -4,
   "a row lays main lane first, then alternating sides")
-assert(triple.items.rail == 31, "consumption matches laid rails")
-assert(triple.record.last_rail.position.x == 0 and triple.record.last_rail.position.y == -10,
+assert(triple.items.rail == 34, "consumption matches laid rails")
+assert(triple.record.last_rail.position.x == 0 and triple.record.last_rail.position.y == -8,
   "last_rail stays the main-lane frontier marker")
 -- A second tick reaches the lookahead and stops instead of double-laying a row.
 layer.events[events.on_tick]{tick = 2 * shared.layer.rail_lay_interval}
-assert(#triple.world.placed == 9, "the laid rows themselves block any repeat")
+assert(#triple.world.placed == 6, "the laid rows themselves block any repeat")
 
 -- A crossing line eats only the lane cells it physically occupies; the main lane goes on.
-local cross_a, cross_b = planted_rail(4, -6, 4), planted_rail(4, -8, 4)
+local cross_a, cross_b = planted_rail(4, -6, 4), planted_rail(4, -12, 4)
 local crossed = scenario{passenger = rider(3, 4), entities = {cross_a, cross_b}}
-assert(#crossed.world.placed == 7, "blocked lane cells are skipped, the row's other lanes still lay")
+assert(#crossed.world.placed == 5, "blocked lane cells are skipped, the row's other lanes still lay")
 local crossed_cells = cell_set(crossed.world)
-assert(not crossed_cells["4,-6"] and not crossed_cells["4,-8"], "never lay a lane over perpendicular track")
-assert(crossed_cells["4,-10"], "the lane resumes once the crossing is past")
+assert(not crossed_cells["4,-6"], "never lay a lane over perpendicular track")
+assert(crossed_cells["4,-8"], "the lane resumes once the crossing is past")
 assert(cross_a.valid and cross_b.valid, "rail infrastructure is never eaten")
-assert(crossed.items.rail == 33)
+assert(crossed.items.rail == 35)
 
 -- Out of rail mid-batch: the second row needs 3 but only 1 remains, so nothing of it lays.
 local dry = scenario{passenger = rider(3, 4), items = {rail = 4, landfill = 40, ["cliff-explosives"] = 40, concrete = 300, ["rail-signal"] = 50, ["medium-electric-pole"] = 50}, auto_resupply_off = true}
@@ -241,14 +242,14 @@ assert(dry.printed[2][1] == "shay-message.no-supply-station")
 -- The drill eats a lane's blocker in its exact cell, never anything outside it.
 local inside, beside, ahead = tree(4, -6), tree(6, -6), tree(4, -4)
 local ground = scenario{passenger = rider(2, 4), entities = {inside, beside, ahead}}
-assert(#ground.world.placed == 6)
+assert(#ground.world.placed == 4)
 assert(not inside.valid, "the blocker in the lane cell is eaten")
 assert(beside.valid and ahead.valid, "trees outside the exact 2x2 cell are never touched")
 assert(ground.items.wood == 2, "mined products are stored in the consist")
 
 -- Odd spacings snap down to an even rail distance; spacing 5 behaves as 4.
 local odd = scenario{passenger = rider(3, 5)}
-assert(#odd.world.placed == 9)
+assert(#odd.world.placed == 6)
 for _, options in ipairs(odd.world.placed) do
   assert(options.position.x ~= 5 and options.position.x ~= -5, "odd spacing never lands off the rail grid")
 end
@@ -256,7 +257,7 @@ end
 -- Driverless, the consist follows the last player to toggle cruise, resolved by index.
 players[7] = rider(2, 4)
 local driverless = scenario{player_index = 7}
-assert(#driverless.world.placed == 6, "a parked consist uses the toggling player's lane settings")
+assert(#driverless.world.placed == 4, "a parked consist uses the toggling player's lane settings")
 players[7] = nil
 
 print("PASS: parallel lanes place on the rail grid, consume per rail, skip blocked cells and stop whole on empty")
