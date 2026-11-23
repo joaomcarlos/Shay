@@ -4,3 +4,4 @@ Date: 2026-11-10
   Changes:
     - Initial development build.
     - Cruise speed is a per-player runtime setting; the default throttle is about 64 km/h, up from 32.
+    - The track layer can lay parallel tracks beside the main line; lane count and spacing are per-player runtime settings.

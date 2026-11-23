@@ -62,6 +62,8 @@ shared.layer =
   grinder_visual_offset = {0, 4.2}, -- enlarged drill centre; its base stays at the nose
   equipment_grid = "shay-equipment-grid",
   pave_width = 1,              -- concrete paved this many tiles past each side of a new rail's 2x2 footprint
+  lanes = 1,                   -- parallel tracks either side of the main line; the per-player setting overrides
+  lane_spacing = 4,            -- tiles between parallel track centrelines; the per-player setting overrides
 }
 
 -- Resupply: run back to the schedule's first station when a needed item runs low, then return to the last laid rail.
@@ -100,5 +102,8 @@ shared.custom_input_demolition = "shay-demolition-mode"
 shared.rail_item_setting = "shay-rail-item"
 
 shared.setting_cruise_speed = "shay-cruise-speed"
+
+shared.setting_lanes = "shay-lanes"
+shared.setting_lane_spacing = "shay-lane-spacing"
 
 return shared
