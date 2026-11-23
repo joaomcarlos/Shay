@@ -26,8 +26,8 @@ end
 data = {
   raw = {
     ["cargo-wagon"] = {["cargo-wagon"] = source(true)},
-    locomotive = {locomotive = source(nil)},
     ["artillery-wagon"] = {["artillery-wagon"] = source(nil)},
+    locomotive = {locomotive = source(nil)},
     ["item-with-entity-data"] = {["cargo-wagon"] = {}, ["artillery-wagon"] = {}, locomotive = {}},
     recipe = {["cargo-wagon"] = {}, ["artillery-wagon"] = {}, locomotive = {}}
   },
