@@ -64,6 +64,7 @@ local function make_world(items, with_tree)
     return {group = nil, current = 1, get_records = function() return {} end, get_interrupts = function() return {} end}
   end
   loco.surface = {
+    get_tile = function() return {name = "grass-1", valid = true} end,
     find_tiles_filtered = function() return {} end,
     find_entities_filtered = function(options)
       if options.area then return footprint end
@@ -89,7 +90,7 @@ local function run(world, ticks)
 end
 
 -- Stocked: the cliff goes down like a player charge took it out, and the rail lands.
-local stocked = make_world({rail = 20, landfill = 20, ["cliff-explosives"] = 10}, true)
+local stocked = make_world({rail = 20, landfill = 20, ["cliff-explosives"] = 10, concrete = 50}, true)
 run(stocked, {5})
 assert(stocked.items["cliff-explosives"] == 9, "laying through a cliff spends one charge")
 assert(not stocked.cliff.valid, "the cliff was destroyed")

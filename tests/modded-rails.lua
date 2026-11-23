@@ -76,7 +76,7 @@ local loco = {
   orientation = 0, position = {x = 0, y = 0}, surface = {},
   force = {print = function() end}
 }
-local counts = {["hl-rail"] = 500, landfill = 500, ["cliff-explosives"] = 500}
+local counts = {["hl-rail"] = 500, landfill = 500, ["cliff-explosives"] = 500, concrete = 500}
 local inventory = {
   remove = function(t) if (counts[t.name] or 0) >= t.count then counts[t.name] = counts[t.name] - t.count return t.count end return 0 end,
   insert = function(t) counts[t.name] = (counts[t.name] or 0) + t.count return t.count end,
@@ -92,6 +92,7 @@ layer.events[events.script_raised_built]{entity = loco}
 local surface = loco.surface
 local frontier = {position = {x = 0, y = -4}, direction = 0, valid = true}
 local cell, placed, checked = {}, nil, {}
+surface.get_tile = function() return {name = "grass-1"} end
 surface.find_entities_filtered = function(args)
   if args.radius then return {frontier} end
   if args.area then return cell end
@@ -99,6 +100,7 @@ surface.find_entities_filtered = function(args)
 end
 surface.find_tiles_filtered = function() return {} end
 local place_checks = 0
+surface.set_tiles = function() end
 surface.can_place_entity = function(args)
   checked[#checked + 1] = args.name
   place_checks = place_checks + 1
@@ -150,17 +152,22 @@ assert(layer.remote.remove_entity_from_trigger("never-added") == nil, "removing 
 assert(layer.remote.remove_entity_from_trigger("big-rock") == true)
 assert(layer.remote.get_trigger_list()["big-rock"] == nil, "removal clears the registration")
 
--- A save written before triggers existed gets an empty, working table.
+-- Loading a save from before triggers existed must not change storage.
 storage.layer.triggers = nil
+package.loaded["lib.layer"] = nil
+layer = require("lib.layer")
 layer.on_load()
-assert(next(layer.remote.get_trigger_list()) == nil, "saves without a trigger list get an empty one")
+assert(storage.layer.triggers == nil, "on_load must not create fields in storage")
+assert(next(layer.remote.get_trigger_list()) == nil, "saves without a trigger list get an empty local one")
 assert(layer.remote.add_entity_to_trigger("big-rock") == true)
+local loaded_triggers = layer.remote.get_trigger_list()
 assert(layer.remote.remove_entity_from_trigger("big-rock") == true)
 
 place_checks = 0
 clear(raised)
 cell = {new_rock()}
 layer.events[events.on_tick]{tick = 15}
+assert(storage.layer.triggers == loaded_triggers, "the first tick persists the trigger list")
 assert(#raised == 0, "a removed name stops raising pre-mined")
 
 print("PASS: modded rail item resolves, is consumed and places its own straight rail")

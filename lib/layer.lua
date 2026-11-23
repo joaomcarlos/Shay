@@ -784,6 +784,8 @@ local on_object_destroyed = function(event)
 end
 
 local on_tick = function(event)
+  -- Saves without a trigger list acquire it here, never during read-only on_load.
+  if not script_data.triggers then script_data.triggers = triggers end
   for _, record in pairs(script_data.locos) do
     if record.entity.valid then update(record, event.tick) end
   end
@@ -818,10 +820,7 @@ end
 
 layer.on_load = function()
   script_data = storage.layer
-  -- Registrations made before this on_load and ones recovered from storage merge here.
-  script_data.triggers = script_data.triggers or {}
-  for name in pairs(triggers) do script_data.triggers[name] = true end
-  triggers = script_data.triggers
+  triggers = script_data.triggers or {}
   resolve_rail()
   register_inputs()
 end
