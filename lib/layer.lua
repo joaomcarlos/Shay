@@ -886,46 +886,58 @@ local lay_rail = function(record, tick)
     local entity_name = piece == straight_rail and rail_entity or piece
     local next_position = {x = frontier.position.x + step[3], y = frontier.position.y + step[4]}
     local vector = vectors[travel_dir]
-    if (next_position.x - position.x) * vector.x + (next_position.y - position.y) * vector.y >= lookahead then return end
-    if not fill_water(record, tick, next_position, fill_radius(piece, direction)) then return end
-    -- The row resolves before a rail leaves the cargo: the main cell always, plus each offset
-    -- lane cell on straight steps — inner and outer curves need different pieces the table doesn't model.
-    if not cell_clear(record, tick, entity_name, next_position, direction, piece) then return end
-    local cells = {next_position}
-    if piece == straight_rail then
-      for n = 1, lanes - 1 do
-        local offset = lane_offset(step[3], step[4], n, spacing)
-        local lane_position = {x = next_position.x + offset.x, y = next_position.y + offset.y}
-        if not fill_water(record, tick, lane_position) then return end
-        if cell_clear(record, tick, entity_name, lane_position, direction, piece) then cells[#cells + 1] = lane_position end
+    local adopted
+    for _, entity in pairs(surface.find_entities_filtered{type = {piece}, position = next_position, radius = 1}) do
+      if math.abs(entity.position.x - next_position.x) < 0.01 and math.abs(entity.position.y - next_position.y) < 0.01 and entity.direction == direction then
+        adopted = entity
+        break
       end
     end
-    local heading_cardinal = {direction = direction, vector = vector}
-    -- Rows lay whole or not at all: short stock warns and stops the batch instead of
-    -- leaving a gap in an offset lane that nothing comes back to fill.
-    if count_item(loco.train, rail_item) < #cells then
-      if tick >= record.next_warn then
-        record.next_warn = tick + warn_interval
-        loco.force.print({"shay-message.out-of-rail"})
-        if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
+    if adopted then
+      frontier = adopted
+      record.last_rail = adopted
+    else
+      if (next_position.x - position.x) * vector.x + (next_position.y - position.y) * vector.y >= lookahead then return end
+      if not fill_water(record, tick, next_position, fill_radius(piece, direction)) then return end
+      -- The row resolves before a rail leaves the cargo: the main cell always, plus each offset
+      -- lane cell on straight steps — inner and outer curves need different pieces the table doesn't model.
+      if not cell_clear(record, tick, entity_name, next_position, direction, piece) then return end
+      local cells = {next_position}
+      if piece == straight_rail then
+        for n = 1, lanes - 1 do
+          local offset = lane_offset(step[3], step[4], n, spacing)
+          local lane_position = {x = next_position.x + offset.x, y = next_position.y + offset.y}
+          if not fill_water(record, tick, lane_position) then return end
+          if cell_clear(record, tick, entity_name, lane_position, direction, piece) then cells[#cells + 1] = lane_position end
+        end
       end
-      return
-    end
-    for index, cell in ipairs(cells) do
-      assert(take_item(loco.train, rail_item))
-      local rail = surface.create_entity{name = entity_name, position = cell, direction = direction, force = loco.force, raise_built = true}
-      -- The main lane stays the frontier marker the resupply trip returns to,
-      -- and the trackside countdown only counts along it — side lanes never
-      -- interleave their own signals and poles.
-      if index == 1 then
-        frontier = rail
-        record.last_rail = rail
-        lay_trackside(record, tick, cell, heading_cardinal)
+      local heading_cardinal = {direction = direction, vector = vector}
+      -- Rows lay whole or not at all: short stock warns and stops the batch instead of
+      -- leaving a gap in an offset lane that nothing comes back to fill.
+      if count_item(loco.train, rail_item) < #cells then
+        if tick >= record.next_warn then
+          record.next_warn = tick + warn_interval
+          loco.force.print({"shay-message.out-of-rail"})
+          if not record.auto_resupply_off then loco.force.print({"shay-message.no-supply-station"}) end
+        end
+        return
       end
-      if record.mode == "maintenance" then record.relaid[rail.unit_number] = rail end
-      pave(record, tick, cell)
+      for index, cell in ipairs(cells) do
+        assert(take_item(loco.train, rail_item))
+        local rail = surface.create_entity{name = entity_name, position = cell, direction = direction, force = loco.force, raise_built = true}
+        -- The main lane stays the frontier marker the resupply trip returns to,
+        -- and the trackside countdown only counts along it — side lanes never
+        -- interleave their own signals and poles.
+        if index == 1 then
+          frontier = rail
+          record.last_rail = rail
+          lay_trackside(record, tick, cell, heading_cardinal)
+        end
+        if record.mode == "maintenance" then record.relaid[rail.unit_number] = rail end
+        pave(record, tick, cell)
+      end
+      set_auto_resupply(loco.train)
     end
-    set_auto_resupply(loco.train)
     travel_dir = (travel_dir + step[5]) % 8
     record.travel_dir = travel_dir
   end

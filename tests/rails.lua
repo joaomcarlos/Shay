@@ -35,7 +35,13 @@ local layer = require("lib.layer")
 layer.on_init()
 
 local rails, placed = {}, {}
-local can_place = function() return true end
+local can_place_default = function(options)
+  for _, rail in pairs(rails) do
+    if rail.valid and math.abs(rail.position.x - options.position.x) < 1e-9 and math.abs(rail.position.y - options.position.y) < 1e-9 then return false end
+  end
+  return true
+end
+local can_place = can_place_default
 local surface = {
   find_entities_filtered = function(filter)
     local out = {}
@@ -164,6 +170,22 @@ assert(#laid == 1, "the exit straight is out of reach")
 check(laid[1], "curved-rail-b", 2, 2, 25)
 assert(record.travel_dir == 1, "curve-a continues into curve-b")
 
+-- Already-built continuation rail is walked forward, not treated as a blocker.
+loco.position = {x = 0, y = 0}
+loco.orientation = 0
+record.last_rail = nil
+record.travel_dir = nil
+rails = {}
+for y = 0, -12, -2 do seed("straight-rail", 0, 0, y) end
+laid = lay(9)
+assert(#laid == 0, "existing rail is only walked, never duplicated")
+assert(record.last_rail and record.last_rail.position.y == -12, "the frontier walked to the end of the existing chain")
+loco.position = {x = 0, y = -8}
+laid = lay(10)
+assert(#laid == 2, "the empty continuation inside lookahead lays after the walk")
+check(laid[1], "straight-rail", 0, 0, -14)
+check(laid[2], "straight-rail", 0, 0, -16)
+
 -- A blocker inside the footprint gets eaten, then the piece places.
 loco.position = {x = 0, y = 0}
 loco.orientation = 0
@@ -179,13 +201,13 @@ can_place = function() calls = calls + 1 return calls > 1 end
 laid = lay(9)
 check(laid[1], "straight-rail", 0, 0, -2)
 assert(not blocker.valid, "the grindable blocker was eaten")
-can_place = function() return true end
+can_place = can_place_default
 
 -- An unplaceable continuation stalls the lay instead of consuming rail.
 can_place = function() return false end
 local count = #rails
 laid = lay(10)
 assert(#laid == 0 and #rails == count, "nothing places and nothing is eaten")
-can_place = function() return true end
+can_place = can_place_default
 
-print("PASS: cardinal straights, steered curve pair, diagonal chaining, mid-curve seed, footprint grind, stall")
+print("PASS: cardinal straights, steered curve pair, diagonal chaining, mid-curve seed, existing-chain walk, footprint grind, stall")
