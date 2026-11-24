@@ -886,6 +886,10 @@ local lay_rail = function(record, tick)
     local entity_name = piece == straight_rail and rail_entity or piece
     local next_position = {x = frontier.position.x + step[3], y = frontier.position.y + step[4]}
     local vector = vectors[travel_dir]
+    -- Pre-built continuation: the exact piece the step chains to may already stand
+    -- on the cell (player-built or earlier track). Adopt it as the frontier instead of
+    -- dying against it as a blocker — otherwise the consist deadlocks at the end of any
+    -- existing line, because the frontier only ever advanced on pieces the mod laid.
     local adopted
     for _, entity in pairs(surface.find_entities_filtered{type = {piece}, position = next_position, radius = 1}) do
       if math.abs(entity.position.x - next_position.x) < 0.01 and math.abs(entity.position.y - next_position.y) < 0.01 and entity.direction == direction then

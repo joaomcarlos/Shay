@@ -210,4 +210,16 @@ laid = lay(10)
 assert(#laid == 0 and #rails == count, "nothing places and nothing is eaten")
 can_place = can_place_default
 
-print("PASS: cardinal straights, steered curve pair, diagonal chaining, mid-curve seed, existing-chain walk, footprint grind, stall")
+-- A mismatched rail on the next cell is not adopted: perpendicular track still stalls the lay.
+loco.position = {x = 0, y = 0}
+loco.orientation = 0
+record.last_rail = nil
+record.travel_dir = nil
+rails = {}
+seed("straight-rail", 0, 0, 0)
+seed("straight-rail", 4, 0, -2)
+count = #rails
+laid = lay(11)
+assert(#laid == 0 and #rails == count, "a crossing piece is neither adopted nor eaten")
+
+print("PASS: cardinal straights, steered curve pair, diagonal chaining, mid-curve seed, existing-chain walk, footprint grind, stall, crossing stall")
